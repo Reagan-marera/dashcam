@@ -1,10 +1,21 @@
 from rest_framework import serializers
 from .models import Driver, Vehicle, Recording, GPSPoint, EmergencyEvent
 
+from django.contrib.auth.models import User
+
 class DriverSerializer(serializers.ModelSerializer):
     class Meta:
         model = Driver
         fields = ['id', 'name', 'license_number', 'phone', 'profile_picture', 'created_at']
+
+    def create(self, validated_data):
+        username = validated_data.get('license_number', '').replace(' ', '_').lower()
+        if not username:
+            import uuid
+            username = f"user_{uuid.uuid4().hex[:10]}"
+        user, _ = User.objects.get_or_create(username=username)
+        validated_data['user'] = user
+        return super().create(validated_data)
 
 class VehicleSerializer(serializers.ModelSerializer):
     owner_name = serializers.CharField(source='owner.name', read_only=True)
