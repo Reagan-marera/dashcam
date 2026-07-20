@@ -1,0 +1,297 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Recording Details{% endblock %}
+
+{% block extra_css %}
+<style>
+    .detail-grid {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 20px;
+    }
+    .video-container {
+        background: #1a1a1a;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    .video-container video {
+        width: 100%;
+        max-height: 500px;
+    }
+    .info-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin: 15px 0;
+    }
+    .info-item {
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 6px;
+    }
+    .info-item label {
+        color: #666;
+        font-size: 12px;
+        display: block;
+    }
+    .info-item value {
+        font-size: 16px;
+        font-weight: bold;
+    }
+    .detections-list {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+    .detection-item {
+        padding: 8px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        justify-content: space-between;
+    }
+    .badge {
+        padding: 2px 10px;
+        border-radius: 12px;
+        font-size: 12px;
+        color: white;
+    }
+    .badge-car { background: #007bff; }
+    .badge-truck { background: #28a745; }
+    .badge-motorcycle { background: #ffc107; color: black; }
+    .badge-bus { background: #dc3545; }
+    .badge-person { background: #6c757d; }
+    .badge-emergency { background: #dc3545; }
+    @media (max-width: 768px) {
+        .detail-grid {
+            grid-template-columns: 1fr;
+        }
+        .info-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div id="recordingDetail">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2><i class="fas fa-video"></i> Recording Details</h2>
+        <button class="btn btn-download" onclick="downloadVideo()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer;">
+            <i class="fas fa-download"></i> Download
+        </button>
+    </div>
+
+    <div class="detail-grid">
+        <div class="card">
+            <h3>Video</h3>
+            <div class="video-container">
+                <video id="videoPlayer" controls>
+                    <source src="" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+            <div class="info-grid" id="videoInfo">
+                <div class="info-item">
+                    <label>Duration</label>
+                    <value id="duration">--</value>
+                </div>
+                <div class="info-item">
+                    <label>File Size</label>
+                    <value id="fileSize">--</value>
+                </div>
+                <div class="info-item">
+                    <label>Date</label>
+                    <value id="recordDate">--</value>
+                </div>
+                <div class="info-item">
+                    <label>Status</label>
+                    <value id="recordStatus">--</value>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>Metadata</h3>
+            <div class="info-grid">
+                <div class="info-item">
+                    <label>Driver</label>
+                    <value id="driverName">--</value>
+                </div>
+                <div class="info-item">
+                    <label>Vehicle</label>
+                    <value id="vehicleReg">--</value>
+                </div>
+                <div class="info-item">
+                    <label>Avg Speed</label>
+                    <value id="avgSpeed">-- km/h</value>
+                </div>
+                <div class="info-item">
+                    <label>Max Speed</label>
+                    <value id="maxSpeed">-- km/h</value>
+                </div>
+                <div class="info-item">
+                    <label>Start Location</label>
+                    <value id="startLocation">--</value>
+                </div>
+                <div class="info-item">
+                    <label>GPS Points</label>
+                    <value id="gpsCount">--</value>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3>AI Detections</h3>
+        <div style="margin-bottom: 15px;">
+            <button onclick="processAI()" class="btn btn-primary" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                <i class="fas fa-robot"></i> Process with AI
+            </button>
+            <span id="aiStatus" style="margin-left: 15px; color: #666;"></span>
+        </div>
+        <div class="detections-list" id="detectionsList">
+            <div style="text-align: center; padding: 20px; color: #666;">
+                No detections available. Click "Process with AI" to analyze.
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let recordingId = window.location.pathname.split('/').filter(Boolean).pop();
+
+    // Load recording details
+    async function loadRecording() {
+        try {
+            const response = await fetch(`/api/recordings/videos/${recordingId}/`);
+            const data = await response.json();
+            
+            // Video
+            const video = document.getElementById('videoPlayer');
+            if (data.video_file) {
+                video.src = data.video_file;
+            }
+            
+            // Info
+            document.getElementById('duration').textContent = data.duration_seconds ? 
+                `${Math.floor(data.duration_seconds/60)}m ${data.duration_seconds%60}s` : '--';
+            document.getElementById('fileSize').textContent = data.file_size_mb ? 
+                `${data.file_size_mb.toFixed(1)} MB` : '--';
+            document.getElementById('recordDate').textContent = new Date(data.date).toLocaleDateString();
+            document.getElementById('recordStatus').textContent = data.is_emergency ? '🚨 Emergency' : '✅ Normal';
+            if (data.is_emergency) {
+                document.getElementById('recordStatus').style.color = '#dc3545';
+            }
+            
+            // Metadata
+            document.getElementById('driverName').textContent = data.driver_name || '--';
+            document.getElementById('vehicleReg').textContent = data.vehicle_registration || '--';
+            document.getElementById('avgSpeed').textContent = data.avg_speed_kmh ? 
+                `${data.avg_speed_kmh.toFixed(1)} km/h` : '--';
+            document.getElementById('maxSpeed').textContent = data.max_speed_kmh ? 
+                `${data.max_speed_kmh.toFixed(1)} km/h` : '--';
+            document.getElementById('startLocation').textContent = 
+                data.start_latitude && data.start_longitude ? 
+                `${data.start_latitude.toFixed(6)}, ${data.start_longitude.toFixed(6)}` : '--';
+            document.getElementById('gpsCount').textContent = data.gps_points ? data.gps_points.length : '0';
+            
+            // Detections
+            if (data.detections && data.detections.detections) {
+                displayDetections(data.detections);
+                document.getElementById('aiStatus').textContent = '✅ Processed';
+                document.getElementById('aiStatus').style.color = '#28a745';
+            } else {
+                document.getElementById('aiStatus').textContent = 'Not processed';
+                document.getElementById('aiStatus').style.color = '#ffc107';
+            }
+            
+        } catch (error) {
+            console.error('Error loading recording:', error);
+        }
+    }
+
+    // Display detections
+    function displayDetections(detections) {
+        const container = document.getElementById('detectionsList');
+        
+        if (!detections.detections || detections.detections.length === 0) {
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No objects detected</div>';
+            return;
+        }
+        
+        // Show summary
+        let html = '<div style="padding: 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 15px;">';
+        html += '<strong>Summary:</strong> ';
+        if (detections.object_counts) {
+            Object.entries(detections.object_counts).forEach(([key, value]) => {
+                html += `<span class="badge badge-${key}">${key}: ${value}</span> `;
+            });
+        }
+        html += `</div><hr>`;
+        
+        // Show detections
+        detections.detections.slice(0, 20).forEach(det => {
+            html += `<div class="detection-item">
+                <span>
+                    <span class="badge badge-${det.class}">${det.class}</span>
+                    ${det.license_plate ? `🔢 ${det.license_plate}` : ''}
+                    <small style="color:#666;">Frame ${det.frame}</small>
+                </span>
+                <span>${(det.confidence * 100).toFixed(1)}%</span>
+            </div>`;
+        });
+        
+        if (detections.detections.length > 20) {
+            html += `<div style="text-align: center; padding: 10px; color: #666;">
+                ${detections.detections.length - 20} more detections...
+            </div>`;
+        }
+        
+        container.innerHTML = html;
+    }
+
+    // Process with AI
+    async function processAI() {
+        document.getElementById('aiStatus').textContent = '⏳ Processing...';
+        document.getElementById('aiStatus').style.color = '#ffc107';
+        
+        try {
+            const response = await fetch(`/api/recordings/videos/${recordingId}/process_ai/`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                document.getElementById('aiStatus').textContent = `✅ Processed: ${result.detections_count} detections`;
+                document.getElementById('aiStatus').style.color = '#28a745';
+                loadRecording();
+            } else {
+                document.getElementById('aiStatus').textContent = '❌ Error: ' + (result.error || 'Unknown error');
+                document.getElementById('aiStatus').style.color = '#dc3545';
+            }
+        } catch (error) {
+            console.error('Error processing AI:', error);
+            document.getElementById('aiStatus').textContent = '❌ Error processing';
+            document.getElementById('aiStatus').style.color = '#dc3545';
+        }
+    }
+
+    // Download video
+    async function downloadVideo() {
+        try {
+            const response = await fetch(`/api/recordings/videos/${recordingId}/download/`);
+            const data = await response.json();
+            if (data.download_url) {
+                window.open(data.download_url, '_blank');
+            }
+        } catch (error) {
+            console.error('Error downloading:', error);
+            alert('Error downloading video');
+        }
+    }
+
+    // Load
+    loadRecording();
+</script>
+{% endblock %}

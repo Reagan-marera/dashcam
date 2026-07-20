@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Phone Dashcam</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background: #000;
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+            touch-action: none;
+        }
+        #video-container {
+            position: relative;
+            width: 100%;
+            height: 100vh;
+            background: #000;
+        }
+        #video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #000;
+        }
+        #overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+        #status-bar {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 14px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .recording-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #ff0000;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.8); }
+        }
+        #speed-display {
+            position: absolute;
+            bottom: 100px;
+            right: 30px;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.9);
+            color: #00ff88;
+        }
+        #speed-display small {
+            font-size: 16px;
+            opacity: 0.7;
+        }
+        #gps-display {
+            position: absolute;
+            bottom: 100px;
+            left: 30px;
+            font-size: 14px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            opacity: 0.8;
+        }
+        #time-display {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 20px;
+            color: rgba(255,255,255,0.5);
+            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+        #controls {
+            position: absolute;
+            bottom: 30px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 0 20px;
+            pointer-events: auto;
+        }
+        .control-btn {
+            padding: 16px 32px;
+            border: none;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            pointer-events: auto;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+        .btn-start {
+            background: #28a745;
+            color: white;
+        }
+        .btn-start.active {
+            background: #dc3545;
+        }
+        .btn-emergency {
+            background: #ffc107;
+            color: black;
+            font-size: 20px;
+            padding: 16px 40px;
+        }
+        .btn-emergency:active {
+            background: #ff6b6b;
+        }
+        .btn-stop {
+            background: #6c757d;
+            color: white;
+        }
+        #emergency-indicator {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 48px;
+            color: #ff0000;
+            text-shadow: 0 0 30px rgba(255,0,0,0.5);
+            animation: emergencyPulse 0.5s infinite;
+            display: none;
+            pointer-events: none;
+        }
+        @keyframes emergencyPulse {
+            0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+            50% { opacity: 0.5; transform: translate(-50%, -50%) scale(1.2); }
+        }
+        #status-message {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.7);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            color: #fff;
+        }
+        @media (max-width: 480px) {
+            #speed-display {
+                font-size: 36px;
+                bottom: 80px;
+            }
+            .control-btn {
+                padding: 12px 24px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="video-container">
+        <video id="video" autoplay playsinline muted></video>
+        
+        <div id="overlay">
+            <div id="status-bar">
+                <div class="status-indicator">
+                    <span class="recording-dot" id="recordingDot"></span>
+                    <span id="recordingStatus">STOPPED</span>
+                </div>
+                <div>
+                    <span id="connectionStatus">🔴 Disconnected</span>
+                </div>
+            </div>
+            
+            <div id="time-display"></div>
+            
+            <div id="speed-display">
+                0 <small>km/h</small>
+            </div>
+            
+            <div id="gps-display">
+                📍 Waiting for GPS...
+            </div>
+            
+            <div id="emergency-indicator">🚨 EMERGENCY</div>
+            
+            <div id="status-message">Ready</div>
+        </div>
+        
+        <div id="controls">
+            <button class="control-btn btn-start" id="recordBtn">🔴 START</button>
+            <button class="control-btn btn-emergency" id="emergencyBtn">🚨 SOS</button>
+            <button class="control-btn btn-stop" id="stopBtn" disabled>⏹ STOP</button>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let isRecording = false;
+        let recordingId = null;
+        let ws = null;
+        let mediaStream = null;
+        let videoTrack = null;
+        let frameInterval = null;
+        let watchId = null;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 10;
+        
+        // DOM elements
+        const video = document.getElementById('video');
+        const recordBtn = document.getElementById('recordBtn');
+        const emergencyBtn = document.getElementById('emergencyBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const speedDisplay = document.getElementById('speed-display');
+        const gpsDisplay = document.getElementById('gps-display');
+        const timeDisplay = document.getElementById('time-display');
+        const recordingStatus = document.getElementById('recordingStatus');
+        const recordingDot = document.getElementById('recordingDot');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const statusMessage = document.getElementById('status-message');
+        const emergencyIndicator = document.getElementById('emergency-indicator');
+        
+        // Update time
+        function updateTime() {
+            const now = new Date();
+            timeDisplay.textContent = now.toLocaleTimeString();
+        }
+        setInterval(updateTime, 1000);
+        updateTime();
+        
+        // Connect WebSocket
+        function connectWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/video/`;
+            
+            try {
+                ws = new WebSocket(wsUrl);
+                
+                ws.onopen = function() {
+                    console.log('WebSocket connected');
+                    connectionStatus.textContent = '🟢 Connected';
+                    connectionStatus.style.color = '#00ff88';
+                    statusMessage.textContent = 'Connected to server';
+                    reconnectAttempts = 0;
+                };
+                
+                ws.onclose = function() {
+                    console.log('WebSocket disconnected');
+                    connectionStatus.textContent = '🔴 Disconnected';
+                    connectionStatus.style.color = '#ff4444';
+                    statusMessage.textContent = 'Reconnecting...';
+                    
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        setTimeout(connectWebSocket, 3000);
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                };
+                
+            } catch (e) {
+                console.error('WebSocket connection failed:', e);
+                setTimeout(connectWebSocket, 3000);
+            }
+        }
+        
+        // Start recording
+        async function startRecording() {
+            try {
+                // Get camera
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: 'environment',
+                        frameRate: { ideal: 15 }
+                    },
+                    audio: false
+                });
+                
+                video.srcObject = mediaStream;
+                videoTrack = mediaStream.getVideoTracks()[0];
+                
+                // Create recording in backend
+                await createRecording();
+                
+                // Start sending frames
+                if (frameInterval) clearInterval(frameInterval);
+                sendFrames();
+                
+                isRecording = true;
+                recordBtn.textContent = '🔴 RECORDING';
+                recordBtn.className = 'control-btn btn-start active';
+                recordingStatus.textContent = 'RECORDING';
+                recordingDot.style.display = 'block';
+                stopBtn.disabled = false;
+                statusMessage.textContent = 'Recording started';
+                
+                // Start GPS
+                startGPS();
+                
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                statusMessage.textContent = 'Error: ' + error.message;
+                alert('Could not start recording. Please allow camera access.');
+            }
+        }
+        
+        // Create recording
+        async function createRecording() {
+            try {
+                const response = await fetch('/api/recordings/videos/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        driver: 1,
+                        vehicle: 1,
+                        start_time: new Date().toISOString(),
+                        start_latitude: 0,
+                        start_longitude: 0,
+                        is_emergency: false
+                    })
+                });
+                
+                if (!response.ok) throw new Error('Failed to create recording');
+                
+                const data = await response.json();
+                recordingId = data.id;
+                console.log('Recording created:', recordingId);
+            } catch (error) {
+                console.error('Error creating recording:', error);
+                // Try to get/create a driver and vehicle
+                await setupDefaultData();
+                // Retry
+                const response = await fetch('/api/recordings/videos/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        driver: 1,
+                        vehicle: 1,
+                        start_time: new Date().toISOString(),
+                        start_latitude: 0,
+                        start_longitude: 0,
+                        is_emergency: false
+                    })
+                });
+                const data = await response.json();
+                recordingId = data.id;
+            }
+        }
+        
+        // Setup default data
+        async function setupDefaultData() {
+            try {
+                // Create driver
+                await fetch('/api/drivers/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: 'Default Driver',
+                        license_number: 'DL12345',
+                        phone: '1234567890'
+                    })
+                });
+                
+                // Create vehicle
+                await fetch('/api/vehicles/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        registration: 'ABC123',
+                        model: 'Default Model',
+                        make: 'Default Make',
+                        year: 2024,
+                        color: 'White',
+                        owner: 1
+                    })
+                });
+            } catch (error) {
+                console.error('Error setting up default data:', error);
+            }
+        }
+        
+        // Send video frames
+        function sendFrames() {
+            if (frameInterval) clearInterval(frameInterval);
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            frameInterval = setInterval(() => {
+                if (!isRecording || !video.videoWidth) return;
+                
+                canvas.width = Math.min(video.videoWidth, 640);
+                canvas.height = Math.min(video.videoHeight, 480);
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Compress and send
+                const frameData = canvas.toDataURL('image/jpeg', 0.6);
+                
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'video_frame',
+                        frame: frameData,
+                        timestamp: new Date().toISOString()
+                    }));
+                }
+            }, 150); // ~6-7 fps for mobile
+        }
+        
+        // Start GPS
+        function startGPS() {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const { latitude, longitude, speed, heading } = position.coords;
+                    const speedKmh = (speed || 0) * 3.6;
+                    
+                    speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
+                    gpsDisplay.textContent = `📍 ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+                    
+                    // Send GPS data
+                    if (ws && ws.readyState === WebSocket.OPEN && recordingId) {
+                        ws.send(JSON.stringify({
+                            type: 'gps_data',
+                            recording_id: recordingId,
+                            timestamp: new Date().toISOString(),
+                            latitude: latitude,
+                            longitude: longitude,
+                            speed: speedKmh,
+                            altitude: position.coords.altitude || null,
+                            accuracy: position.coords.accuracy || null,
+                            heading: heading || null
+                        }));
+                    }
+                },
+                (error) => {
+                    console.error('GPS error:', error);
+                    gpsDisplay.textContent = '📍 GPS unavailable';
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 5000,
+                    maximumAge: 1000
+                }
+            );
+        }
+        
+        // Stop recording
+        async function stopRecording() {
+            isRecording = false;
+            
+            if (frameInterval) {
+                clearInterval(frameInterval);
+                frameInterval = null;
+            }
+            
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+                videoTrack = null;
+            }
+            
+            video.srcObject = null;
+            
+            // Update recording
+            if (recordingId) {
+                try {
+                    await fetch(`/api/recordings/videos/${recordingId}/`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            end_time: new Date().toISOString()
+                        })
+                    });
+                    console.log('Recording saved:', recordingId);
+                } catch (error) {
+                    console.error('Error saving recording:', error);
+                }
+            }
+            
+            recordBtn.textContent = '🔴 START';
+            recordBtn.className = 'control-btn btn-start';
+            recordingStatus.textContent = 'STOPPED';
+            recordingDot.style.display = 'none';
+            stopBtn.disabled = true;
+            statusMessage.textContent = 'Recording stopped';
+            recordingId = null;
+        }
+        
+        // Emergency
+        async function triggerEmergency() {
+            if (!recordingId) {
+                statusMessage.textContent = 'Start recording first!';
+                return;
+            }
+            
+            // Show emergency indicator
+            emergencyIndicator.style.display = 'block';
+            statusMessage.textContent = '🚨 EMERGENCY TRIGGERED!';
+            
+            try {
+                await fetch(`/api/recordings/videos/${recordingId}/add_emergency/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        latitude: 0,
+                        longitude: 0,
+                        speed_kmh: 0,
+                        description: 'Emergency event triggered by user'
+                    })
+                });
+                console.log('Emergency event recorded');
+            } catch (error) {
+                console.error('Error marking emergency:', error);
+            }
+            
+            // Vibrate if available
+            if (navigator.vibrate) {
+                navigator.vibrate([200, 100, 200, 100, 200]);
+            }
+            
+            setTimeout(() => {
+                emergencyIndicator.style.display = 'none';
+                statusMessage.textContent = 'Ready';
+            }, 5000);
+        }
+        
+        // Event listeners
+        recordBtn.addEventListener('click', () => {
+            if (isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+        
+        stopBtn.addEventListener('click', stopRecording);
+        
+        emergencyBtn.addEventListener('click', triggerEmergency);
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'r' || e.key === 'R') {
+                recordBtn.click();
+            }
+            if (e.key === 's' || e.key === 'S') {
+                emergencyBtn.click();
+            }
+            if (e.key === ' ' || e.key === 'Escape') {
+                if (isRecording) stopBtn.click();
+                e.preventDefault();
+            }
+        });
+        
+        // Initialize
+        connectionStatus.textContent = '🔴 Connecting...';
+        connectWebSocket();
+        
+        // Auto-start if on mobile
+        if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+            setTimeout(startRecording, 1000);
+        }
+        
+        console.log('Phone dashcam app initialized');
+    </script>
+</body>
+</html>
