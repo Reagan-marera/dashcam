@@ -31,7 +31,6 @@ INSTALLED_APPS = [
     'corsheaders',
     'channels',
     'django_filters',
-    'leaflet',
     
     # Custom apps
     'api',
@@ -149,12 +148,3 @@ REST_FRAMEWORK = {
 # File upload settings
 FILE_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100 MB
 DATA_UPLOAD_MAX_MEMORY_SIZE = 100 * 1024 * 1024  # 100 MB
-
-# Leaflet settings
-LEAFLET_CONFIG = {
-    'DEFAULT_CENTER': (0, 0),
-    'DEFAULT_ZOOM': 2,
-    'MIN_ZOOM': 1,
-    'MAX_ZOOM': 20,
-    'ATTRIBUTION_PREFIX': 'Dashcam Project',
-}
