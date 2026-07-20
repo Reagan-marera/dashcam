@@ -35,7 +35,6 @@ INSTALLED_APPS = [
     
     # Custom apps
     'api',
-    'recordings',
     'livestream',
 ]
 
