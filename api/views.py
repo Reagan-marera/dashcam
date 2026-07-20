@@ -179,7 +179,7 @@ class RecordingViewSet(viewsets.ModelViewSet):
     
     @action(detail=True, methods=['post'])
     def process_ai(self, request, pk=None):
-        from recordings.ai_processor import DashcamAIProcessor
+        from api.ai_processor import DashcamAIProcessor
         
         recording = self.get_object()
         
