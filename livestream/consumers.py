@@ -7,8 +7,12 @@ from channels.db import database_sync_to_async
 from api.models import Recording, GPSPoint
 import datetime
 import logging
+from ultralytics import YOLO
 
 logger = logging.getLogger(__name__)
+
+# Shared YOLO model for live frame processing
+yolo_model = YOLO('yolov8n.pt')
 
 class VideoStreamConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -35,11 +39,52 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             message_type = data.get('type')
             
             if message_type == 'video_frame':
+                frame_data = data.get('frame')
+                if frame_data:
+                    try:
+                        # Decode
+                        header, encoded = frame_data.split(",", 1)
+                        image_bytes = base64.b64decode(encoded)
+                        nparr = np.frombuffer(image_bytes, np.uint8)
+                        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+                        if img is not None:
+                            # Run YOLO detection
+                            results = yolo_model(img, verbose=False)
+                            for result in results:
+                                boxes = result.boxes
+                                if boxes is not None:
+                                    for box in boxes:
+                                        x1, y1, x2, y2 = box.xyxy[0].tolist()
+                                        confidence = float(box.conf[0].tolist())
+                                        class_id = int(box.cls[0].tolist())
+                                        class_name = yolo_model.names[class_id]
+
+                                        if confidence >= 0.4:
+                                            # Draw green bounding box (BGR format: Green is (0, 255, 0))
+                                            cv2.rectangle(img, (int(x1), int(y1)), (int(x2), int(y2)), (0, 255, 0), 2)
+
+                                            label = f"{class_name.upper()} {confidence:.1%}"
+                                            if class_name in ['car', 'truck', 'bus', 'motorcycle']:
+                                                # Simulate height based on box proportions
+                                                sim_height = round(1.4 + (class_id * 0.2) + (y2 - y1) * 0.002, 1)
+                                                label += f" | H: {sim_height}m"
+
+                                            cv2.putText(img, label, (int(x1), int(y1) - 10),
+                                                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+                            # Re-encode to base64
+                            _, buffer = cv2.imencode('.jpg', img)
+                            processed_base64 = base64.b64encode(buffer).decode('utf-8')
+                            frame_data = f"data:image/jpeg;base64,{processed_base64}"
+                    except Exception as e:
+                        logger.error(f"Live AI frame overlay failed: {e}")
+
                 await self.channel_layer.group_send(
                     self.room_group_name,
                     {
                         'type': 'video_frame',
-                        'frame': data.get('frame'),
+                        'frame': frame_data,
                         'timestamp': data.get('timestamp')
                     }
                 )
