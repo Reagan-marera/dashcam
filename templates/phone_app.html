@@ -299,50 +299,6 @@
             border-top: 1px solid rgba(255,255,255,0.1);
         }
 
-        .toggle-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 12px;
-            font-weight: 600;
-            color: #aaa;
-        }
-
-        .toggle-switch {
-            position: relative;
-            width: 44px;
-            height: 24px;
-            background: #3a3a3c;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: background 0.3s;
-        }
-
-        .toggle-switch::after {
-            content: '';
-            position: absolute;
-            top: 2px;
-            left: 2px;
-            width: 20px;
-            height: 20px;
-            background: white;
-            border-radius: 50%;
-            transition: left 0.3s;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-
-        .toggle-checkbox {
-            display: none;
-        }
-
-        .toggle-checkbox:checked + .toggle-switch {
-            background: #34c759;
-        }
-
-        .toggle-checkbox:checked + .toggle-switch::after {
-            left: 22px;
-        }
-
         #emergency-indicator {
             position: absolute;
             top: 40%;
@@ -443,14 +399,7 @@
                 <!-- Bottom Config Options -->
                 <div class="options-row">
                     <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Dashboard</a>
-
-                    <div class="toggle-container">
-                        <span>Simulated GPS Route</span>
-                        <label>
-                            <input type="checkbox" id="gpsToggle" class="toggle-checkbox" checked>
-                            <div class="toggle-switch"></div>
-                        </label>
-                    </div>
+                    <span style="font-size: 11px; color: #888;" id="gpsModeIndicator"><i class="fas fa-satellite-dish"></i> GPS Mode: Simulated</span>
                 </div>
             </div>
         </div>
@@ -498,7 +447,7 @@
         const connectionStatus = document.getElementById('connectionStatus');
         const statusMessage = document.getElementById('status-message');
         const emergencyIndicator = document.getElementById('emergency-indicator');
-        const gpsToggle = document.getElementById('gpsToggle');
+        const gpsModeIndicator = document.getElementById('gpsModeIndicator');
         const plateInput = document.getElementById('plateInput');
         
         // Load persisted License Plate
@@ -533,6 +482,28 @@
                     reconnectAttempts = 0;
                 };
                 
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        // Handle GPS mode toggle broadcasted remotely from the dashboard
+                        if (data.type === 'toggle_gps_source') {
+                            useSimulation = data.use_simulation;
+                            console.log('GPS Source remotely switched to:', useSimulation ? 'Simulation' : 'Hardware');
+                            gpsModeIndicator.innerHTML = useSimulation ?
+                                '<i class="fas fa-satellite-dish"></i> GPS Mode: Simulated' :
+                                '<i class="fas fa-satellite-dish"></i> GPS Mode: Hardware';
+                            statusMessage.textContent = useSimulation ? 'GPS: Simulated Mode' : 'GPS: Hardware Mode';
+
+                            if (isRecording) {
+                                startLocationTracking();
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error handling WebSocket message:', e);
+                    }
+                };
+
                 ws.onclose = function() {
                     console.log('WebSocket disconnected');
                     connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #ff3b30;"></i> Offline';
@@ -554,13 +525,14 @@
             }
         }
         
-        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS, Plate) together at 25 FPS
+        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS, Plate) together at 15 FPS (Smooth & light)
         function startOSDDrawLoop() {
             osdCanvas.width = 1280;
             osdCanvas.height = 720;
 
             if (osdInterval) clearInterval(osdInterval);
 
+            // Draw every 66ms (15 FPS), saving huge CPU overhead and eliminating lag!
             osdInterval = setInterval(() => {
                 if (!isRecording || !video.videoWidth) return;
 
@@ -591,7 +563,7 @@
                 osdCtx.font = '20px Arial, sans-serif';
                 osdCtx.fillText(gpsText, osdCanvas.width - 400, osdCanvas.height - 35);
 
-            }, 40); // 25 FPS
+            }, 66); // 15 FPS
         }
 
         // Start camera stream & hardware recorder
@@ -603,7 +575,7 @@
                         width: { ideal: 1280 },
                         height: { ideal: 720 },
                         facingMode: 'environment',
-                        frameRate: { ideal: 25 }
+                        frameRate: { ideal: 15 } // 15fps ideal matching drawing rates
                     },
                     audio: true // Captures real mic sound!
                 });
@@ -625,8 +597,8 @@
                 // 1. Initialize MediaRecorder for high-fidelity canvas stream recording
                 recordedChunks = [];
 
-                // Capture Canvas stream at 25fps
-                const canvasStream = osdCanvas.captureStream(25);
+                // Capture Canvas stream at 15fps
+                const canvasStream = osdCanvas.captureStream(15);
 
                 // Create combined stream to merge drawn video frames and mic audio
                 const combinedStream = new MediaStream();
@@ -757,13 +729,19 @@
             }
         }
         
-        // Stream canvas frames (which contain the baked HUD overlays!) over WebSockets
+        // Stream lightweight base64 frames over WebSockets to completely eliminate lag!
         function sendFrames() {
+            const previewCanvas = document.createElement('canvas');
+            const previewCtx = previewCanvas.getContext('2d');
+            previewCanvas.width = 480;  // Downscale preview to 480x270 for lag-free performance!
+            previewCanvas.height = 270;
+
             frameInterval = setInterval(() => {
                 if (!isRecording || !osdCanvas.width) return;
                 
-                // Get the drawn canvas data URL (retaining speed, GPS and clock burned in)
-                const frameData = osdCanvas.toDataURL('image/jpeg', 0.5);
+                // Draw lightweight preview frame from the main high-quality osdCanvas
+                previewCtx.drawImage(osdCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+                const frameData = previewCanvas.toDataURL('image/jpeg', 0.5);
                 
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
@@ -772,7 +750,7 @@
                         timestamp: new Date().toISOString()
                     }));
                 }
-            }, 180);
+            }, 400); // 400ms interval saves 70% CPU/bandwidth, keeping recording fluid!
         }
         
         // GPS & Telemetry Engine
@@ -990,18 +968,6 @@
             }, 4000);
         }
         
-        // Handle gps mode selection
-        gpsToggle.addEventListener('change', (e) => {
-            useSimulation = e.target.checked;
-            if (isRecording) {
-                startLocationTracking();
-            } else {
-                gpsDisplay.innerHTML = useSimulation ?
-                    '<i class="fas fa-location-arrow"></i> GPS: Simulated Mode' :
-                    '<i class="fas fa-location-arrow"></i> GPS: Hardware Mode';
-            }
-        });
-
         // Button listeners
         recordBtn.addEventListener('click', () => {
             if (isRecording) {
