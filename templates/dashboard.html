@@ -303,18 +303,8 @@
 
     <!-- Live Map Card -->
     <div class="live-feed-card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
-            <h3 style="color: white; font-weight: 700; margin: 0;"><i class="fas fa-map-marked-alt" style="color: #10b981;"></i> Real-time GPS Tracker</h3>
-
-            <!-- Dashboard GPS Source Toggle -->
-            <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); padding: 6px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
-                <span style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">GPS SOURCE:</span>
-                <button id="dashboardGpsToggle" onclick="toggleRemoteGPS()" class="btn" style="padding: 4px 10px; background: #34c759; color: white; border: none; border-radius: 8px; font-size: 11px; font-weight: bold; cursor: pointer; transition: all 0.3s; min-height: unset; line-height: 1;">
-                    SIMULATED ROUTE
-                </button>
-            </div>
-        </div>
-        <div style="height: calc(100% - 60px); min-height: 380px;">
+        <h3 style="color: white; margin-bottom: 15px; font-weight: 700; margin: 0;"><i class="fas fa-map-marked-alt" style="color: #10b981;"></i> Real-time GPS Tracker</h3>
+        <div style="height: calc(100% - 40px); min-height: 380px;">
             <div id="map"></div>
         </div>
     </div>
@@ -610,32 +600,6 @@
             }
         } catch (error) {
             console.error('Error loading stats:', error);
-        }
-    }
-
-    let remoteGpsSimulation = true;
-
-    function toggleRemoteGPS() {
-        remoteGpsSimulation = !remoteGpsSimulation;
-        const btn = document.getElementById('dashboardGpsToggle');
-
-        if (remoteGpsSimulation) {
-            btn.textContent = 'SIMULATED ROUTE';
-            btn.style.background = '#34c759'; // Green
-        } else {
-            btn.textContent = 'REAL DEVICE GPS';
-            btn.style.background = '#0a84ff'; // Blue
-        }
-
-        // Broadcast the change over WebSocket
-        if (ws && ws.readyState === WebSocket.OPEN) {
-            ws.send(JSON.stringify({
-                type: 'toggle_gps_source',
-                use_simulation: remoteGpsSimulation
-            }));
-            console.log('Broadcasted toggle_gps_source:', remoteGpsSimulation);
-        } else {
-            alert('WebSocket is currently disconnected. Make sure the phone dashcam client is running and connected.');
         }
     }
 

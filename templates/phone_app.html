@@ -399,7 +399,7 @@
                 <!-- Bottom Config Options -->
                 <div class="options-row">
                     <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Dashboard</a>
-                    <span style="font-size: 11px; color: #888;" id="gpsModeIndicator"><i class="fas fa-satellite-dish"></i> GPS Mode: Simulated</span>
+                    <span style="font-size: 11px; color: #34c759;" id="gpsModeIndicator"><i class="fas fa-satellite-dish"></i> Hardware GPS Enabled</span>
                 </div>
             </div>
         </div>
@@ -422,11 +422,9 @@
         let recordedChunks = [];
         let recExtension = 'webm';
 
-        // GPS State
-        let simulatedGPSInterval = null;
-        let useSimulation = true;
-        let currentLat = 37.7749;
-        let currentLng = -122.4194;
+        // Real GPS State Variables (Absolutely no simulation!)
+        let currentLat = 0;
+        let currentLng = 0;
         let currentSpeed = 0;
 
         // High-Precision Real GPS Speed Overrides (Bypasses null speed outputs)
@@ -452,7 +450,6 @@
         const connectionStatus = document.getElementById('connectionStatus');
         const statusMessage = document.getElementById('status-message');
         const emergencyIndicator = document.getElementById('emergency-indicator');
-        const gpsModeIndicator = document.getElementById('gpsModeIndicator');
         const plateInput = document.getElementById('plateInput');
         
         // Load persisted License Plate
@@ -487,28 +484,6 @@
                     reconnectAttempts = 0;
                 };
                 
-                ws.onmessage = function(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-
-                        // Handle GPS mode toggle broadcasted remotely from the dashboard
-                        if (data.type === 'toggle_gps_source') {
-                            useSimulation = data.use_simulation;
-                            console.log('GPS Source remotely switched to:', useSimulation ? 'Simulation' : 'Hardware');
-                            gpsModeIndicator.innerHTML = useSimulation ?
-                                '<i class="fas fa-satellite-dish"></i> GPS Mode: Simulated' :
-                                '<i class="fas fa-satellite-dish"></i> GPS Mode: Hardware';
-                            statusMessage.textContent = useSimulation ? 'GPS: Simulated Mode' : 'GPS: Hardware Mode';
-
-                            if (isRecording) {
-                                startLocationTracking();
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Error handling WebSocket message:', e);
-                    }
-                };
-
                 ws.onclose = function() {
                     console.log('WebSocket disconnected');
                     connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #ff3b30;"></i> Offline';
@@ -671,8 +646,8 @@
                         driver: 1,
                         vehicle: 1,
                         start_time: new Date().toISOString(),
-                        start_latitude: currentLat,
-                        start_longitude: currentLng,
+                        start_latitude: currentLat || 0.0,
+                        start_longitude: currentLng || 0.0,
                         is_emergency: false
                     })
                 });
@@ -694,8 +669,8 @@
                         driver: 1,
                         vehicle: 1,
                         start_time: new Date().toISOString(),
-                        start_latitude: currentLat,
-                        start_longitude: currentLng,
+                        start_latitude: currentLat || 0.0,
+                        start_longitude: currentLng || 0.0,
                         is_emergency: false
                     })
                 });
@@ -758,108 +733,74 @@
             }, 400); // 400ms interval saves 70% CPU/bandwidth, keeping recording fluid!
         }
         
-        // GPS & Telemetry Engine
+        // GPS Telemetry Engine - strictly using real hardware inputs, with dynamic Haversine fallback if speed is null
         function startLocationTracking() {
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
             }
-            if (simulatedGPSInterval) {
-                clearInterval(simulatedGPSInterval);
-                simulatedGPSInterval = null;
-            }
-            
+
             lastGpsTime = null;
             lastLat = null;
             lastLng = null;
 
-            if (useSimulation) {
-                startSimulatedGPS();
-            } else {
-                statusMessage.textContent = 'Locating device hardware GPS...';
+            statusMessage.textContent = 'Locating device hardware GPS...';
 
-                watchId = navigator.geolocation.watchPosition(
-                    (position) => {
-                        const { latitude, longitude, speed, heading } = position.coords;
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const { latitude, longitude, speed, heading } = position.coords;
 
-                        let speedKmh = 0;
-                        const now = Date.now();
+                    let speedKmh = 0;
+                    const now = Date.now();
 
-                        // Compute speed from hardware GPS or fallback to Haversine distance
-                        if (speed !== null && speed !== undefined) {
-                            speedKmh = speed * 3.6;
-                        } else if (lastLat !== null && lastLng !== null && lastGpsTime !== null) {
-                            const elapsedSeconds = (now - lastGpsTime) / 1000;
-                            if (elapsedSeconds > 0.5) {
-                                // Haversine formula
-                                const R = 6371; // Earth radius in km
-                                const dLat = (latitude - lastLat) * Math.PI / 180;
-                                const dLng = (longitude - lastLng) * Math.PI / 180;
-                                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                                          Math.cos(lastLat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) *
-                                          Math.sin(dLng/2) * Math.sin(dLng/2);
-                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                                const distanceKm = R * c;
-                                speedKmh = (distanceKm / elapsedSeconds) * 3600; // km/h
+                    // Compute speed from hardware GPS or fallback to Haversine distance
+                    if (speed !== null && speed !== undefined) {
+                        speedKmh = speed * 3.6;
+                    } else if (lastLat !== null && lastLng !== null && lastGpsTime !== null) {
+                        const elapsedSeconds = (now - lastGpsTime) / 1000;
+                        if (elapsedSeconds > 0.5) {
+                            // Haversine formula
+                            const R = 6371; // Earth radius in km
+                            const dLat = (latitude - lastLat) * Math.PI / 180;
+                            const dLng = (longitude - lastLng) * Math.PI / 180;
+                            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                                      Math.cos(lastLat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) *
+                                      Math.sin(dLng/2) * Math.sin(dLng/2);
+                            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                            const distanceKm = R * c;
+                            speedKmh = (distanceKm / elapsedSeconds) * 3600; // km/h
 
-                                // Clean up jitter
-                                if (speedKmh < 1.0) speedKmh = 0;
-                            }
+                            // Clean up jitter
+                            if (speedKmh < 1.0) speedKmh = 0;
                         }
-
-                        // Set current state parameters - absolutely binding GPS location and calculated speed!
-                        currentLat = latitude;
-                        currentLng = longitude;
-                        currentSpeed = speedKmh;
-
-                        lastLat = latitude;
-                        lastLng = longitude;
-                        lastGpsTime = now;
-
-                        speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
-                        gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
-                        statusMessage.textContent = 'Real GPS Active';
-
-                        sendGPSData(latitude, longitude, speedKmh, heading);
-                    },
-                    (error) => {
-                        console.error('Real GPS error:', error);
-                        statusMessage.textContent = 'GPS Error: Check permissions';
-                        gpsDisplay.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: #ff3b30;"></i> GPS Error`;
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0
                     }
-                );
-            }
-        }
 
-        function startSimulatedGPS() {
-            if (simulatedGPSInterval) clearInterval(simulatedGPSInterval);
+                    // Set current state parameters - absolutely binding GPS location and calculated speed!
+                    currentLat = latitude;
+                    currentLng = longitude;
+                    currentSpeed = speedKmh;
 
-            currentLat = 37.7749;
-            currentLng = -122.4194;
-            let heading = 0;
+                    lastLat = latitude;
+                    lastLng = longitude;
+                    lastGpsTime = now;
 
-            simulatedGPSInterval = setInterval(() => {
-                if (!isRecording) {
-                    clearInterval(simulatedGPSInterval);
-                    return;
+                    speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
+                    gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
+                    statusMessage.textContent = 'Real GPS Active';
+
+                    sendGPSData(latitude, longitude, speedKmh, heading);
+                },
+                (error) => {
+                    console.error('Real GPS error:', error);
+                    statusMessage.textContent = 'GPS Error: Check permissions';
+                    gpsDisplay.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: #ff3b30;"></i> GPS Error`;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
                 }
-
-                // Simulate progressive driving route
-                currentLat += (Math.random() - 0.4) * 0.0001;
-                currentLng += (Math.random() - 0.3) * 0.0001;
-                currentSpeed = 40 + Math.random() * 20; // 40-60 km/h
-                heading = (heading + (Math.random() - 0.5) * 12) % 360;
-
-                speedDisplay.innerHTML = `${currentSpeed.toFixed(1)} <small>km/h</small>`;
-                gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${currentLat.toFixed(5)}<br>Lng: ${currentLng.toFixed(5)} (Sim)`;
-
-                sendGPSData(currentLat, currentLng, currentSpeed, heading);
-            }, 2000);
+            );
         }
 
         function sendGPSData(lat, lng, speed, heading) {
@@ -900,10 +841,6 @@
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
-            }
-            if (simulatedGPSInterval) {
-                clearInterval(simulatedGPSInterval);
-                simulatedGPSInterval = null;
             }
             
             if (mediaStream) {
