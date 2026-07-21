@@ -463,10 +463,19 @@
         // Media Recorder State (For actual high-quality physical file recording & downloading)
         let mediaRecorder = null;
         let recordedChunks = [];
+        let recExtension = 'webm';
 
         // GPS State
         let simulatedGPSInterval = null;
         let useSimulation = true;
+        let currentLat = 37.7749;
+        let currentLng = -122.4194;
+        let currentSpeed = 0;
+
+        // OSD Telemetry Video Baking Canvas
+        let osdCanvas = document.createElement('canvas');
+        let osdCtx = osdCanvas.getContext('2d');
+        let osdInterval = null;
 
         // DOM elements
         const video = document.getElementById('video');
@@ -527,6 +536,46 @@
             }
         }
         
+        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS) together at 25 FPS
+        function startOSDDrawLoop() {
+            osdCanvas.width = 1280;
+            osdCanvas.height = 720;
+
+            if (osdInterval) clearInterval(osdInterval);
+
+            osdInterval = setInterval(() => {
+                if (!isRecording || !video.videoWidth) return;
+
+                // 1. Draw raw camera frame
+                osdCtx.drawImage(video, 0, 0, osdCanvas.width, osdCanvas.height);
+
+                // 2. Draw black translucent banner at the bottom for HUD metadata
+                osdCtx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+                osdCtx.fillRect(0, osdCanvas.height - 90, osdCanvas.width, 90);
+
+                // 3. Draw Date & Time (Left bottom)
+                const now = new Date();
+                const dateStr = now.toLocaleDateString();
+                const timeStr = now.toLocaleTimeString();
+                osdCtx.fillStyle = '#ffffff';
+                osdCtx.font = '22px Arial, sans-serif';
+                osdCtx.fillText(`DATE: ${dateStr}   TIME: ${timeStr}`, 40, osdCanvas.height - 35);
+
+                // 4. Draw Speed (Center bottom)
+                const speedText = `SPEED: ${currentSpeed.toFixed(1)} KM/H`;
+                osdCtx.fillStyle = '#00ff88';
+                osdCtx.font = 'bold 26px Arial, sans-serif';
+                osdCtx.fillText(speedText, 450, osdCanvas.height - 35);
+
+                // 5. Draw GPS Coordinates (Right bottom)
+                const gpsText = `GPS: ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`;
+                osdCtx.fillStyle = '#ffffff';
+                osdCtx.font = '20px Arial, sans-serif';
+                osdCtx.fillText(gpsText, osdCanvas.width - 400, osdCanvas.height - 35);
+
+            }, 40); // 25 FPS
+        }
+
         // Start camera stream & hardware recorder
         async function startRecording() {
             try {
@@ -538,7 +587,7 @@
                         facingMode: 'environment',
                         frameRate: { ideal: 25 }
                     },
-                    audio: true // Non-simulated: captures real mic sound too!
+                    audio: true // Captures real mic sound!
                 });
                 
                 video.srcObject = mediaStream;
@@ -547,38 +596,66 @@
                 statusMessage.textContent = 'Creating recording session...';
                 await createRecording();
                 
-                // 1. Initialize MediaRecorder for high-fidelity physical video generation
+                isRecording = true;
+
+                // Start tracking location (to populate telemetry variables)
+                startLocationTracking();
+
+                // Start drawing OSD frames immediately
+                startOSDDrawLoop();
+
+                // 1. Initialize MediaRecorder for high-fidelity canvas stream recording
                 recordedChunks = [];
-                let mimeType = 'video/webm; codecs=vp9';
-                if (!MediaRecorder.isTypeSupported(mimeType)) {
-                    mimeType = 'video/webm; codecs=vp8';
-                    if (!MediaRecorder.isTypeSupported(mimeType)) {
-                        mimeType = 'video/webm';
+
+                // Capture Canvas stream at 25fps
+                const canvasStream = osdCanvas.captureStream(25);
+
+                // Create combined stream to merge drawn video frames and mic audio
+                const combinedStream = new MediaStream();
+                combinedStream.addTrack(canvasStream.getVideoTracks()[0]);
+
+                const audioTracks = mediaStream.getAudioTracks();
+                if (audioTracks.length > 0) {
+                    combinedStream.addTrack(audioTracks[0]);
+                }
+
+                // Detect most compatible system codecs (prefer MP4/H264, fallback to WebM)
+                let recordingMimeType = 'video/mp4; codecs=h264';
+                recExtension = 'mp4';
+
+                if (!MediaRecorder.isTypeSupported(recordingMimeType)) {
+                    recordingMimeType = 'video/mp4';
+                    if (!MediaRecorder.isTypeSupported(recordingMimeType)) {
+                        recordingMimeType = 'video/webm; codecs=h264';
+                        recExtension = 'webm';
+                        if (!MediaRecorder.isTypeSupported(recordingMimeType)) {
+                            recordingMimeType = 'video/webm; codecs=vp9';
+                            if (!MediaRecorder.isTypeSupported(recordingMimeType)) {
+                                recordingMimeType = 'video/webm';
+                            }
+                        }
                     }
                 }
 
-                mediaRecorder = new MediaRecorder(mediaStream, { mimeType: mimeType });
+                console.log(`Baking recording with: ${recordingMimeType}`);
+                mediaRecorder = new MediaRecorder(combinedStream, { mimeType: recordingMimeType });
                 mediaRecorder.ondataavailable = function(e) {
                     if (e.data && e.data.size > 0) {
                         recordedChunks.push(e.data);
                     }
                 };
-                mediaRecorder.start(1000); // Capture chunks every 1 second
+                mediaRecorder.start(1000); // collect chunks every second
 
                 // 2. Start WebSocket base64 stream for real-time remote dashboard previews
                 if (frameInterval) clearInterval(frameInterval);
                 sendFrames();
                 
-                isRecording = true;
                 recordBtn.innerHTML = '<i class="fas fa-dot-circle"></i>';
                 recordBtn.className = 'control-btn btn-start active';
                 recordingStatus.textContent = 'RECORDING';
                 recordingDot.className = 'recording-dot active';
                 stopBtn.disabled = false;
                 statusMessage.textContent = 'Recording live...';
-                
-                // Start tracking location
-                startLocationTracking();
                 
             } catch (error) {
                 console.error('Error starting recording:', error);
@@ -599,8 +676,8 @@
                         driver: 1,
                         vehicle: 1,
                         start_time: new Date().toISOString(),
-                        start_latitude: 37.7749,
-                        start_longitude: -122.4194,
+                        start_latitude: currentLat,
+                        start_longitude: currentLng,
                         is_emergency: false
                     })
                 });
@@ -622,8 +699,8 @@
                         driver: 1,
                         vehicle: 1,
                         start_time: new Date().toISOString(),
-                        start_latitude: 37.7749,
-                        start_longitude: -122.4194,
+                        start_latitude: currentLat,
+                        start_longitude: currentLng,
                         is_emergency: false
                     })
                 });
@@ -662,19 +739,13 @@
             }
         }
         
-        // Stream camera snapshots through WebSockets (for active dashboard previews)
+        // Stream canvas frames (which contain the baked HUD overlays!) over WebSockets
         function sendFrames() {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
             frameInterval = setInterval(() => {
-                if (!isRecording || !video.videoWidth) return;
+                if (!isRecording || !osdCanvas.width) return;
                 
-                canvas.width = Math.min(video.videoWidth, 640);
-                canvas.height = Math.min(video.videoHeight, 480);
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                
-                const frameData = canvas.toDataURL('image/jpeg', 0.6);
+                // Get the drawn canvas data URL (retaining speed, GPS and clock burned in)
+                const frameData = osdCanvas.toDataURL('image/jpeg', 0.5);
                 
                 if (ws && ws.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({
@@ -683,7 +754,7 @@
                         timestamp: new Date().toISOString()
                     }));
                 }
-            }, 180); // Stream to server for dashboard preview and green overlay scan
+            }, 180);
         }
         
         // GPS & Telemetry Engine
@@ -711,6 +782,10 @@
                         const { latitude, longitude, speed, heading } = position.coords;
                         const speedKmh = (speed || 0) * 3.6;
 
+                        currentLat = latitude;
+                        currentLng = longitude;
+                        currentSpeed = speedKmh;
+
                         speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
                         gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${latitude.toFixed(5)}<br>Lng: ${longitude.toFixed(5)}`;
 
@@ -733,8 +808,8 @@
         function startSimulatedGPS() {
             if (simulatedGPSInterval) clearInterval(simulatedGPSInterval);
 
-            let lat = 37.7749;
-            let lng = -122.4194;
+            currentLat = 37.7749;
+            currentLng = -122.4194;
             let heading = 0;
 
             simulatedGPSInterval = setInterval(() => {
@@ -744,15 +819,15 @@
                 }
 
                 // Simulate progressive driving route
-                lat += (Math.random() - 0.4) * 0.0001;
-                lng += (Math.random() - 0.3) * 0.0001;
-                let speedKmh = 40 + Math.random() * 20; // 40-60 km/h
+                currentLat += (Math.random() - 0.4) * 0.0001;
+                currentLng += (Math.random() - 0.3) * 0.0001;
+                currentSpeed = 40 + Math.random() * 20; // 40-60 km/h
                 heading = (heading + (Math.random() - 0.5) * 12) % 360;
 
-                speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
-                gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${lat.toFixed(5)}<br>Lng: ${lng.toFixed(5)} (Sim)`;
+                speedDisplay.innerHTML = `${currentSpeed.toFixed(1)} <small>km/h</small>`;
+                gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${currentLat.toFixed(5)}<br>Lng: ${currentLng.toFixed(5)} (Sim)`;
 
-                sendGPSData(lat, lng, speedKmh, heading);
+                sendGPSData(currentLat, currentLng, currentSpeed, heading);
             }, 2000);
         }
 
@@ -772,7 +847,7 @@
             }
         }
 
-        // Stop recording, trigger download to local storage, and patch actual recording.webm to server
+        // Stop recording, trigger download to local storage, and patch actual recording.mp4/webm to server
         async function stopRecording() {
             isRecording = false;
             statusMessage.textContent = 'Saving high-quality capture...';
@@ -786,6 +861,10 @@
             if (frameInterval) {
                 clearInterval(frameInterval);
                 frameInterval = null;
+            }
+            if (osdInterval) {
+                clearInterval(osdInterval);
+                osdInterval = null;
             }
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
@@ -803,18 +882,19 @@
             }
             
             video.srcObject = null;
+            currentSpeed = 0;
             
             // 3. Process video compile, local storage download, and API file upload
             setTimeout(async () => {
                 if (recordedChunks.length > 0) {
-                    const videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+                    const videoBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/webm' });
 
                     // A. Trigger instant local download to device gallery / disk memory
                     const downloadUrl = URL.createObjectURL(videoBlob);
                     const a = document.createElement('a');
                     a.style.display = 'none';
                     a.href = downloadUrl;
-                    a.download = `dashcam_recording_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
+                    a.download = `dashcam_recording_${new Date().toISOString().replace(/[:.]/g, '-')}.${recExtension}`;
                     document.body.appendChild(a);
                     a.click();
                     setTimeout(() => {
@@ -822,10 +902,10 @@
                         window.URL.revokeObjectURL(downloadUrl);
                     }, 150);
 
-                    // B. Send the ACTUAL recording.webm to database storage for web preview & AI processing
+                    // B. Send the ACTUAL baked video to database storage for web preview & AI processing
                     if (recordingId) {
                         const formData = new FormData();
-                        formData.append('video_file', videoBlob, 'recording.webm');
+                        formData.append('video_file', videoBlob, `recording.${recExtension}`);
                         formData.append('end_time', new Date().toISOString());
 
                         try {
@@ -872,9 +952,9 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        latitude: 37.7749,
-                        longitude: -122.4194,
-                        speed_kmh: 55.0,
+                        latitude: currentLat,
+                        longitude: currentLng,
+                        speed_kmh: currentSpeed,
                         description: 'Emergency manual distress signal triggered by driver'
                     })
                 });
