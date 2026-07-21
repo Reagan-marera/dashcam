@@ -66,7 +66,7 @@ class DashcamAPITests(APITestCase):
         self.assertEqual(Vehicle.objects.filter(registration='NEW-777').count(), 1)
 
     def test_recording_endpoints(self):
-        # Test creation of a recording without a video file (should fail with 400)
+        # Test creation of a recording without a video file (should now succeed with 201)
         url = reverse('recording-list')
         data = {
             'driver': self.driver.id,
@@ -76,16 +76,6 @@ class DashcamAPITests(APITestCase):
             'start_longitude': -122.4194,
             'is_emergency': False
         }
-        response = self.client.post(url, data, format='multipart')
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('Video file is required', response.data['error'])
-
-        # Create a mock video file and upload it
-        from django.core.files.uploadedfile import SimpleUploadedFile
-        video_content = b'fake-video-bytes'
-        video_file = SimpleUploadedFile('test_video.mp4', video_content, content_type='video/mp4')
-
-        data['video_file'] = video_file
         response = self.client.post(url, data, format='multipart')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         recording_id = response.data['id']

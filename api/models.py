@@ -43,7 +43,7 @@ class Recording(models.Model):
     driver = models.ForeignKey(Driver, on_delete=models.CASCADE, related_name='recordings')
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='recordings')
     
-    video_file = models.FileField(upload_to='recordings/videos/%Y/%m/%d/')
+    video_file = models.FileField(upload_to='recordings/videos/%Y/%m/%d/', null=True, blank=True)
     thumbnail = models.ImageField(upload_to='recordings/thumbnails/%Y/%m/%d/', null=True, blank=True)
     
     date = models.DateField(auto_now_add=True)

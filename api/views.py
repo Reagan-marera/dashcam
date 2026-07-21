@@ -47,15 +47,11 @@ class RecordingViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         
         video_file = request.FILES.get('video_file')
-        if not video_file:
-            return Response(
-                {'error': 'Video file is required'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
         
         recording = serializer.save(video_file=video_file)
-        recording.file_size_mb = video_file.size / (1024 * 1024)
-        recording.save()
+        if video_file:
+            recording.file_size_mb = video_file.size / (1024 * 1024)
+            recording.save()
         
         return Response(
             RecordingSerializer(recording).data,

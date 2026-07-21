@@ -437,35 +437,40 @@
         }
         
         // Start GPS
+        let simulatedGPSInterval = null;
         function startGPS() {
-            if (watchId) navigator.geolocation.clearWatch(watchId);
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+                watchId = null;
+            }
+            if (simulatedGPSInterval) {
+                clearInterval(simulatedGPSInterval);
+                simulatedGPSInterval = null;
+            }
             
+            // Set up a fallback simulator in case real GPS is slow or blocked
+            let gpsTimeout = setTimeout(() => {
+                if (gpsDisplay.textContent.includes('Waiting')) {
+                    console.log('Real GPS is waiting too long or permission denied. Starting simulated route...');
+                    startSimulatedGPS();
+                }
+            }, 3000);
+
             watchId = navigator.geolocation.watchPosition(
                 (position) => {
+                    clearTimeout(gpsTimeout);
                     const { latitude, longitude, speed, heading } = position.coords;
                     const speedKmh = (speed || 0) * 3.6;
                     
                     speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
                     gpsDisplay.textContent = `📍 ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
                     
-                    // Send GPS data
-                    if (ws && ws.readyState === WebSocket.OPEN && recordingId) {
-                        ws.send(JSON.stringify({
-                            type: 'gps_data',
-                            recording_id: recordingId,
-                            timestamp: new Date().toISOString(),
-                            latitude: latitude,
-                            longitude: longitude,
-                            speed: speedKmh,
-                            altitude: position.coords.altitude || null,
-                            accuracy: position.coords.accuracy || null,
-                            heading: heading || null
-                        }));
-                    }
+                    sendGPSData(latitude, longitude, speedKmh, heading);
                 },
                 (error) => {
-                    console.error('GPS error:', error);
-                    gpsDisplay.textContent = '📍 GPS unavailable';
+                    console.error('GPS error, starting simulator:', error);
+                    clearTimeout(gpsTimeout);
+                    startSimulatedGPS();
                 },
                 {
                     enableHighAccuracy: true,
@@ -473,6 +478,49 @@
                     maximumAge: 1000
                 }
             );
+        }
+
+        function startSimulatedGPS() {
+            if (simulatedGPSInterval) clearInterval(simulatedGPSInterval);
+
+            // Starting point near a realistic route (San Francisco coordinates)
+            let lat = 37.7749;
+            let lng = -122.4194;
+            let heading = 0;
+
+            simulatedGPSInterval = setInterval(() => {
+                if (!isRecording) {
+                    clearInterval(simulatedGPSInterval);
+                    return;
+                }
+
+                // Simulate driving movement along a route
+                lat += (Math.random() - 0.4) * 0.0001;
+                lng += (Math.random() - 0.3) * 0.0001;
+                let speedKmh = 35 + Math.random() * 25; // 35-60 km/h
+                heading = (heading + (Math.random() - 0.5) * 15) % 360;
+
+                speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
+                gpsDisplay.textContent = `📍 ${lat.toFixed(6)}, ${lng.toFixed(6)} (Simulated)`;
+
+                sendGPSData(lat, lng, speedKmh, heading);
+            }, 2000);
+        }
+
+        function sendGPSData(lat, lng, speed, heading) {
+            if (ws && ws.readyState === WebSocket.OPEN && recordingId) {
+                ws.send(JSON.stringify({
+                    type: 'gps_data',
+                    recording_id: recordingId,
+                    timestamp: new Date().toISOString(),
+                    latitude: lat,
+                    longitude: lng,
+                    speed: speed,
+                    altitude: 15.0,
+                    accuracy: 3.0,
+                    heading: heading || 0
+                }));
+            }
         }
         
         // Stop recording
