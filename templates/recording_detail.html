@@ -12,48 +12,59 @@
     }
     .video-container {
         background: #1a1a1a;
-        border-radius: 8px;
+        border-radius: 12px;
         overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.1);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
     }
     .video-container video {
         width: 100%;
         max-height: 500px;
+        display: block;
     }
     .info-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
-        gap: 10px;
+        gap: 12px;
         margin: 15px 0;
     }
     .info-item {
-        padding: 10px;
-        background: #f8f9fa;
-        border-radius: 6px;
+        padding: 12px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.08);
     }
     .info-item label {
-        color: #666;
-        font-size: 12px;
+        color: #aaa;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
         display: block;
+        margin-bottom: 4px;
     }
     .info-item value {
-        font-size: 16px;
-        font-weight: bold;
+        font-size: 15px;
+        font-weight: 700;
+        color: #fff;
     }
     .detections-list {
         max-height: 300px;
         overflow-y: auto;
     }
     .detection-item {
-        padding: 8px;
-        border-bottom: 1px solid #eee;
+        padding: 10px;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
         display: flex;
         justify-content: space-between;
+        align-items: center;
     }
     .badge {
-        padding: 2px 10px;
+        padding: 4px 12px;
         border-radius: 12px;
-        font-size: 12px;
+        font-size: 11px;
+        font-weight: 700;
         color: white;
+        text-transform: uppercase;
     }
     .badge-car { background: #007bff; }
     .badge-truck { background: #28a745; }
@@ -61,6 +72,7 @@
     .badge-bus { background: #dc3545; }
     .badge-person { background: #6c757d; }
     .badge-emergency { background: #dc3545; }
+
     @media (max-width: 768px) {
         .detail-grid {
             grid-template-columns: 1fr;
@@ -73,23 +85,36 @@
 {% endblock %}
 
 {% block content %}
-<div id="recordingDetail">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2><i class="fas fa-video"></i> Recording Details</h2>
-        <button class="btn btn-download" onclick="downloadVideo()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer;">
-            <i class="fas fa-download"></i> Download
+<div id="recordingDetail" style="margin-top: 20px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
+        <h2 style="color: #fff; font-weight: 700;"><i class="fas fa-video" style="color: #667eea;"></i> Recording Details</h2>
+        <button class="btn" onclick="downloadVideo()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; transition: all 0.3s;">
+            <i class="fas fa-download"></i> Download Local File
         </button>
     </div>
 
     <div class="detail-grid">
         <div class="card">
-            <h3>Video</h3>
+            <h3 style="color: #fff; margin-bottom: 15px;"><i class="far fa-play-circle" style="color: #667eea;"></i> Playback</h3>
             <div class="video-container">
                 <video id="videoPlayer" controls>
+                    <source src="" type="video/webm">
                     <source src="" type="video/mp4">
                     Your browser does not support the video tag.
                 </video>
             </div>
+
+            <!-- Manual File Upload Box -->
+            <div id="uploadBox" class="card" style="margin-top: 20px; display: none; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.15); border-radius: 12px; padding: 15px;">
+                <h4 style="margin-bottom: 10px; color: #fff; font-size: 14px;"><i class="fas fa-upload" style="color: #34c759;"></i> Manual Video File Upload / Replace</h4>
+                <p style="font-size: 12px; color: #aaa; margin-bottom: 15px;">If the video was not automatically sync'd from your phone, you can select and upload the downloaded video file here.</p>
+                <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                    <input type="file" id="fileUploadInput" accept="video/*" style="flex: 1; padding: 8px; font-size: 13px; color: #fff; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                    <button onclick="uploadVideoFile()" class="btn" style="padding: 10px 20px; background: #34c759; border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 700;">Upload File</button>
+                </div>
+                <div id="uploadStatus" style="margin-top: 10px; font-size: 12px; font-weight: 600;"></div>
+            </div>
+
             <div class="info-grid" id="videoInfo">
                 <div class="info-item">
                     <label>Duration</label>
@@ -111,13 +136,13 @@
         </div>
 
         <div class="card">
-            <h3>Metadata</h3>
+            <h3 style="color: #fff; margin-bottom: 15px;"><i class="fas fa-info-circle" style="color: #667eea;"></i> Metadata</h3>
             <div class="info-grid">
-                <div class="info-item">
+                <div class="info-item" style="grid-column: span 2;">
                     <label>Driver</label>
                     <value id="driverName">--</value>
                 </div>
-                <div class="info-item">
+                <div class="info-item" style="grid-column: span 2;">
                     <label>Vehicle</label>
                     <value id="vehicleReg">--</value>
                 </div>
@@ -129,12 +154,12 @@
                     <label>Max Speed</label>
                     <value id="maxSpeed">-- km/h</value>
                 </div>
-                <div class="info-item">
+                <div class="info-item" style="grid-column: span 2;">
                     <label>Start Location</label>
                     <value id="startLocation">--</value>
                 </div>
-                <div class="info-item">
-                    <label>GPS Points</label>
+                <div class="info-item" style="grid-column: span 2;">
+                    <label>GPS Points Captured</label>
                     <value id="gpsCount">--</value>
                 </div>
             </div>
@@ -142,15 +167,15 @@
     </div>
 
     <div class="card" style="margin-top: 20px;">
-        <h3>AI Detections</h3>
-        <div style="margin-bottom: 15px;">
-            <button onclick="processAI()" class="btn btn-primary" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer;">
+        <h3 style="color: #fff; margin-bottom: 15px;"><i class="fas fa-robot" style="color: #667eea;"></i> AI Detections</h3>
+        <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+            <button onclick="processAI()" class="btn" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px;">
                 <i class="fas fa-robot"></i> Process with AI
             </button>
-            <span id="aiStatus" style="margin-left: 15px; color: #666;"></span>
+            <span id="aiStatus" style="font-size: 13px; font-weight: 600; color: #aaa;"></span>
         </div>
         <div class="detections-list" id="detectionsList">
-            <div style="text-align: center; padding: 20px; color: #666;">
+            <div style="text-align: center; padding: 30px; color: #aaa; background: rgba(255,255,255,0.02); border-radius: 8px;">
                 No detections available. Click "Process with AI" to analyze.
             </div>
         </div>
@@ -168,45 +193,93 @@
             
             // Video
             const video = document.getElementById('videoPlayer');
+            const uploadBox = document.getElementById('uploadBox');
+
             if (data.video_file) {
                 video.src = data.video_file;
+                video.load(); // Explicitly invoke video load so it decodes instantly
+                uploadBox.style.display = 'block'; // Show so they can manually replace if they want
+            } else {
+                uploadBox.style.display = 'block'; // Show upload block so they can add the file
             }
             
             // Info
             document.getElementById('duration').textContent = data.duration_seconds ? 
                 `${Math.floor(data.duration_seconds/60)}m ${data.duration_seconds%60}s` : '--';
             document.getElementById('fileSize').textContent = data.file_size_mb ? 
-                `${data.file_size_mb.toFixed(1)} MB` : '--';
+                `${data.file_size_mb.toFixed(1)} MB` : '0.0 MB';
             document.getElementById('recordDate').textContent = new Date(data.date).toLocaleDateString();
-            document.getElementById('recordStatus').textContent = data.is_emergency ? '🚨 Emergency' : '✅ Normal';
-            if (data.is_emergency) {
-                document.getElementById('recordStatus').style.color = '#dc3545';
-            }
+
+            const rStatus = document.getElementById('recordStatus');
+            rStatus.textContent = data.is_emergency ? '🚨 Emergency' : '✅ Normal';
+            rStatus.style.color = data.is_emergency ? '#ff3b30' : '#34c759';
             
             // Metadata
             document.getElementById('driverName').textContent = data.driver_name || '--';
             document.getElementById('vehicleReg').textContent = data.vehicle_registration || '--';
             document.getElementById('avgSpeed').textContent = data.avg_speed_kmh ? 
-                `${data.avg_speed_kmh.toFixed(1)} km/h` : '--';
+                `${data.avg_speed_kmh.toFixed(1)} km/h` : '0.0 km/h';
             document.getElementById('maxSpeed').textContent = data.max_speed_kmh ? 
-                `${data.max_speed_kmh.toFixed(1)} km/h` : '--';
+                `${data.max_speed_kmh.toFixed(1)} km/h` : '0.0 km/h';
             document.getElementById('startLocation').textContent = 
                 data.start_latitude && data.start_longitude ? 
-                `${data.start_latitude.toFixed(6)}, ${data.start_longitude.toFixed(6)}` : '--';
+                `${parseFloat(data.start_latitude).toFixed(6)}, ${parseFloat(data.start_longitude).toFixed(6)}` : '--';
             document.getElementById('gpsCount').textContent = data.gps_points ? data.gps_points.length : '0';
             
             // Detections
             if (data.detections && data.detections.detections) {
                 displayDetections(data.detections);
                 document.getElementById('aiStatus').textContent = '✅ Processed';
-                document.getElementById('aiStatus').style.color = '#28a745';
+                document.getElementById('aiStatus').style.color = '#34c759';
             } else {
                 document.getElementById('aiStatus').textContent = 'Not processed';
-                document.getElementById('aiStatus').style.color = '#ffc107';
+                document.getElementById('aiStatus').style.color = '#ff9500';
             }
             
         } catch (error) {
             console.error('Error loading recording:', error);
+        }
+    }
+
+    // Manual Upload Video File Function
+    async function uploadVideoFile() {
+        const fileInput = document.getElementById('fileUploadInput');
+        const statusDiv = document.getElementById('uploadStatus');
+
+        if (!fileInput.files || fileInput.files.length === 0) {
+            statusDiv.textContent = '❌ Please select a video file first.';
+            statusDiv.style.color = '#ff3b30';
+            return;
+        }
+
+        const file = fileInput.files[0];
+        statusDiv.textContent = '⏳ Uploading video file...';
+        statusDiv.style.color = '#ff9500';
+
+        const formData = new FormData();
+        formData.append('video_file', file);
+
+        try {
+            const response = await fetch(`/api/recordings/videos/${recordingId}/`, {
+                method: 'PATCH',
+                body: formData
+            });
+
+            if (response.ok) {
+                statusDiv.textContent = '✅ Video file uploaded successfully! Refreshing player...';
+                statusDiv.style.color = '#34c759';
+                setTimeout(() => {
+                    location.reload();
+                }, 1500);
+            } else {
+                const err = await response.json();
+                statusDiv.textContent = '❌ Upload failed: ' + (err.error || 'Server error');
+                statusDiv.style.color = '#ff3b30';
+            }
+        } catch (error) {
+            console.error('Error uploading:', error);
+            statusDiv.textContent = '❌ Network connection error.';
+            statusDiv.style.color = '#ff3b30';
         }
     }
 
@@ -215,35 +288,35 @@
         const container = document.getElementById('detectionsList');
         
         if (!detections.detections || detections.detections.length === 0) {
-            container.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No objects detected</div>';
+            container.innerHTML = '<div style="text-align: center; padding: 20px; color: #aaa;">No objects detected</div>';
             return;
         }
         
         // Show summary
-        let html = '<div style="padding: 10px; background: #f8f9fa; border-radius: 6px; margin-bottom: 15px;">';
-        html += '<strong>Summary:</strong> ';
+        let html = '<div style="padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">';
+        html += '<strong style="color: #fff; font-size: 13px; margin-right: 5px;">Summary:</strong> ';
         if (detections.object_counts) {
             Object.entries(detections.object_counts).forEach(([key, value]) => {
                 html += `<span class="badge badge-${key}">${key}: ${value}</span> `;
             });
         }
-        html += `</div><hr>`;
+        html += `</div><hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin-bottom: 15px;">`;
         
         // Show detections
         detections.detections.slice(0, 20).forEach(det => {
             html += `<div class="detection-item">
                 <span>
                     <span class="badge badge-${det.class}">${det.class}</span>
-                    ${det.license_plate ? `🔢 ${det.license_plate}` : ''}
-                    <small style="color:#666;">Frame ${det.frame}</small>
+                    ${det.license_plate ? `<span style="font-weight: bold; background: #fff; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 10px;">🔢 ${det.license_plate}</span>` : ''}
+                    <small style="color:#aaa; margin-left: 10px;">Frame ${det.frame}</small>
                 </span>
-                <span>${(det.confidence * 100).toFixed(1)}%</span>
+                <span style="color: #00ff88; font-weight: bold;">${(det.confidence * 100).toFixed(1)}%</span>
             </div>`;
         });
         
         if (detections.detections.length > 20) {
-            html += `<div style="text-align: center; padding: 10px; color: #666;">
-                ${detections.detections.length - 20} more detections...
+            html += `<div style="text-align: center; padding: 15px; color: #aaa; font-size: 13px;">
+                And ${detections.detections.length - 20} more objects detected...
             </div>`;
         }
         
@@ -253,7 +326,7 @@
     // Process with AI
     async function processAI() {
         document.getElementById('aiStatus').textContent = '⏳ Processing...';
-        document.getElementById('aiStatus').style.color = '#ffc107';
+        document.getElementById('aiStatus').style.color = '#ff9500';
         
         try {
             const response = await fetch(`/api/recordings/videos/${recordingId}/process_ai/`, {
@@ -264,16 +337,16 @@
             
             if (result.status === 'success') {
                 document.getElementById('aiStatus').textContent = `✅ Processed: ${result.detections_count} detections`;
-                document.getElementById('aiStatus').style.color = '#28a745';
+                document.getElementById('aiStatus').style.color = '#34c759';
                 loadRecording();
             } else {
                 document.getElementById('aiStatus').textContent = '❌ Error: ' + (result.error || 'Unknown error');
-                document.getElementById('aiStatus').style.color = '#dc3545';
+                document.getElementById('aiStatus').style.color = '#ff3b30';
             }
         } catch (error) {
             console.error('Error processing AI:', error);
             document.getElementById('aiStatus').textContent = '❌ Error processing';
-            document.getElementById('aiStatus').style.color = '#dc3545';
+            document.getElementById('aiStatus').style.color = '#ff3b30';
         }
     }
 
@@ -284,6 +357,8 @@
             const data = await response.json();
             if (data.download_url) {
                 window.open(data.download_url, '_blank');
+            } else {
+                alert('No video file has been synced yet. Please manually upload the downloaded video file from your phone gallery using the upload form.');
             }
         } catch (error) {
             console.error('Error downloading:', error);

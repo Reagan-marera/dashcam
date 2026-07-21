@@ -432,6 +432,14 @@
                     <button class="control-btn btn-stop" id="stopBtn" disabled title="Stop and Download"><i class="fas fa-stop"></i></button>
                 </div>
 
+                <!-- License Plate Config -->
+                <div class="options-row" style="border: none; padding-bottom: 0;">
+                    <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
+                        <span style="font-size: 11px; font-weight: 600; color: #aaa; white-space: nowrap;"><i class="fas fa-id-card"></i> VEHICLE PLATE:</span>
+                        <input type="text" id="plateInput" placeholder="ABC-1234" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: white; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; outline: none; flex: 1; text-align: center;">
+                    </div>
+                </div>
+
                 <!-- Bottom Config Options -->
                 <div class="options-row">
                     <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Dashboard</a>
@@ -491,7 +499,17 @@
         const statusMessage = document.getElementById('status-message');
         const emergencyIndicator = document.getElementById('emergency-indicator');
         const gpsToggle = document.getElementById('gpsToggle');
+        const plateInput = document.getElementById('plateInput');
         
+        // Load persisted License Plate
+        let currentPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
+        plateInput.value = currentPlate;
+
+        plateInput.addEventListener('input', (e) => {
+            currentPlate = e.target.value.toUpperCase() || 'ABC-1234';
+            localStorage.setItem('dashcam_plate', currentPlate);
+        });
+
         // Update clock
         function updateTime() {
             const now = new Date();
@@ -536,7 +554,7 @@
             }
         }
         
-        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS) together at 25 FPS
+        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS, Plate) together at 25 FPS
         function startOSDDrawLoop() {
             osdCanvas.width = 1280;
             osdCanvas.height = 720;
@@ -561,11 +579,11 @@
                 osdCtx.font = '22px Arial, sans-serif';
                 osdCtx.fillText(`DATE: ${dateStr}   TIME: ${timeStr}`, 40, osdCanvas.height - 35);
 
-                // 4. Draw Speed (Center bottom)
-                const speedText = `SPEED: ${currentSpeed.toFixed(1)} KM/H`;
+                // 4. Draw Speed & License Plate (Center bottom)
+                const speedText = `SPEED: ${currentSpeed.toFixed(1)} KM/H   PLATE: ${currentPlate}`;
                 osdCtx.fillStyle = '#00ff88';
                 osdCtx.font = 'bold 26px Arial, sans-serif';
-                osdCtx.fillText(speedText, 450, osdCanvas.height - 35);
+                osdCtx.fillText(speedText, 400, osdCanvas.height - 35);
 
                 // 5. Draw GPS Coordinates (Right bottom)
                 const gpsText = `GPS: ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`;
@@ -726,7 +744,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        registration: 'ABC123',
+                        registration: currentPlate,
                         model: 'Default Model',
                         make: 'Default Make',
                         year: 2024,
@@ -856,7 +874,7 @@
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.stop();
             }
-            
+
             // 2. Clear visual trackers
             if (frameInterval) {
                 clearInterval(frameInterval);
