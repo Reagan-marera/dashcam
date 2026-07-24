@@ -291,7 +291,15 @@
 <div class="main-grid">
     <!-- Camera Live Feed Card -->
     <div class="live-feed-card">
-        <h3 style="color: white; margin-bottom: 15px; font-weight: 700;"><i class="fas fa-satellite-dish" style="color: #6366f1;"></i> Camera Live Monitor</h3>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+            <h3 style="color: white; font-weight: 700; margin: 0;"><i class="fas fa-satellite-dish" style="color: #6366f1;"></i> Camera Live Monitor</h3>
+
+            <!-- Dashboard License Plate Input -->
+            <div style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.05); padding: 6px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
+                <span style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;"><i class="fas fa-id-card"></i> VEHICLE PLATE:</span>
+                <input type="text" id="dashboardPlateInput" placeholder="ABC-1234" oninput="broadcastVehiclePlate()" style="background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); color: white; border-radius: 8px; padding: 4px 8px; font-size: 11px; font-weight: bold; width: 100px; text-align: center; text-transform: uppercase; outline: none;">
+            </div>
+        </div>
         <img id="liveFeed" src="" alt="Dashcam Stream Disconnected (Awaiting Client Connect)">
 
         <div class="live-meta-row">
@@ -371,6 +379,9 @@
                 badge.textContent = '🟢 Live Feed';
                 badge.className = 'live-badge live-badge-on';
                 reconnectAttempts = 0;
+
+                // Auto-broadcast plate on connect
+                broadcastVehiclePlate();
             };
             
             ws.onmessage = function(event) {
@@ -605,6 +616,10 @@
 
     // Initialize Dashboard UI
     document.addEventListener('DOMContentLoaded', function() {
+        // Load persisted plate into input field
+        const lastBroadcastedPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
+        document.getElementById('dashboardPlateInput').value = lastBroadcastedPlate;
+
         initMap();
         connectWebSocket();
         loadRecordings();
@@ -616,5 +631,19 @@
             loadStats();
         }, 15000);
     });
+
+    function broadcastVehiclePlate() {
+        const plateInput = document.getElementById('dashboardPlateInput');
+        const plateVal = plateInput.value.toUpperCase() || 'ABC-1234';
+        localStorage.setItem('dashcam_plate', plateVal);
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'set_vehicle_plate',
+                plate: plateVal
+            }));
+            console.log('Broadcasted set_vehicle_plate:', plateVal);
+        }
+    }
 </script>
 {% endblock %}
