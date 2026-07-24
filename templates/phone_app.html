@@ -437,6 +437,9 @@
         let osdCtx = osdCanvas.getContext('2d');
         let osdInterval = null;
 
+        // Continuous Voice command recognition engine using standard SpeechRecognition API
+        let speechRecognizer = null;
+
         // DOM elements
         const video = document.getElementById('video');
         const recordBtn = document.getElementById('recordBtn');
@@ -451,7 +454,7 @@
         const statusMessage = document.getElementById('status-message');
         const emergencyIndicator = document.getElementById('emergency-indicator');
         const plateInput = document.getElementById('plateInput');
-        
+
         // Load persisted License Plate
         let currentPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
         plateInput.value = currentPlate;
@@ -505,7 +508,7 @@
             }
         }
         
-        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS, Plate) together at 15 FPS (Smooth & light)
+        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS, Plate) together with permanent REAGANTECH watermark
         function startOSDDrawLoop() {
             osdCanvas.width = 1280;
             osdCanvas.height = 720;
@@ -519,11 +522,18 @@
                 // 1. Draw raw camera frame
                 osdCtx.drawImage(video, 0, 0, osdCanvas.width, osdCanvas.height);
 
-                // 2. Draw black translucent banner at the bottom for HUD metadata
+                // 2. Draw permanent REAGANTECH watermark plate at top-right of every frame
+                osdCtx.fillStyle = 'rgba(10, 15, 30, 0.75)';
+                osdCtx.fillRect(osdCanvas.width - 240, 20, 200, 45);
+                osdCtx.fillStyle = '#ff9500';
+                osdCtx.font = 'bold 24px Arial, sans-serif';
+                osdCtx.fillText('REAGANTECH', osdCanvas.width - 221, 52);
+
+                // 3. Draw black translucent banner at the bottom for HUD metadata
                 osdCtx.fillStyle = 'rgba(0, 0, 0, 0.55)';
                 osdCtx.fillRect(0, osdCanvas.height - 90, osdCanvas.width, 90);
 
-                // 3. Draw Date & Time (Left bottom)
+                // 4. Draw Date & Time (Left bottom)
                 const now = new Date();
                 const dateStr = now.toLocaleDateString();
                 const timeStr = now.toLocaleTimeString();
@@ -531,13 +541,13 @@
                 osdCtx.font = '22px Arial, sans-serif';
                 osdCtx.fillText(`DATE: ${dateStr}   TIME: ${timeStr}`, 40, osdCanvas.height - 35);
 
-                // 4. Draw Speed & License Plate (Center bottom)
+                // 5. Draw Speed & License Plate (Center bottom)
                 const speedText = `SPEED: ${currentSpeed.toFixed(1)} KM/H   PLATE: ${currentPlate}`;
                 osdCtx.fillStyle = '#00ff88';
                 osdCtx.font = 'bold 26px Arial, sans-serif';
                 osdCtx.fillText(speedText, 400, osdCanvas.height - 35);
 
-                // 5. Draw GPS Coordinates (Right bottom)
+                // 6. Draw GPS Coordinates (Right bottom)
                 const gpsText = `GPS: ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`;
                 osdCtx.fillStyle = '#ffffff';
                 osdCtx.font = '20px Arial, sans-serif';
@@ -546,7 +556,7 @@
             }, 66); // 15 FPS
         }
 
-        // Start camera stream & hardware recorder
+        // Start camera stream, hardware recorder, and continuous voice recognition
         async function startRecording() {
             try {
                 // Fetch actual hardware camera stream
@@ -573,6 +583,9 @@
 
                 // Start drawing OSD frames immediately
                 startOSDDrawLoop();
+
+                // Start continuous background voice listener
+                startVoiceRecognition();
 
                 // 1. Initialize MediaRecorder for high-fidelity canvas stream recording
                 recordedChunks = [];
@@ -803,6 +816,64 @@
             );
         }
 
+        // Continuous Web Speech API Background Recognition
+        function startVoiceRecognition() {
+            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!window.SpeechRecognition) {
+                console.warn('Voice command recognition is not supported on this browser.');
+                return;
+            }
+
+            if (speechRecognizer) {
+                try { speechRecognizer.stop(); } catch(e) {}
+                speechRecognizer = null;
+            }
+
+            speechRecognizer = new window.SpeechRecognition();
+            speechRecognizer.continuous = true;
+            speechRecognizer.interimResults = false;
+            speechRecognizer.lang = 'en-US';
+
+            speechRecognizer.onresult = function(event) {
+                const lastResultIndex = event.results.length - 1;
+                const transcript = event.results[lastResultIndex][0].transcript.toLowerCase();
+                console.log('Heard Command:', transcript);
+
+                // Continuous background keywords trigger automatic SOS + local saving
+                if (transcript.includes('save') || transcript.includes('help') || transcript.includes('emergency') || transcript.includes('sos') || transcript.includes('accident')) {
+                    console.log('🚨 VOICE EMERGENCY DETECTED!');
+                    statusMessage.textContent = 'Voice command: Triggering SOS saving!';
+                    handleVoiceSOS();
+                }
+            };
+
+            speechRecognizer.onend = function() {
+                // Keep listening continuously in the background while recording is active
+                if (isRecording && speechRecognizer) {
+                    try { speechRecognizer.start(); } catch(e) {}
+                }
+            };
+
+            speechRecognizer.onerror = function(e) {
+                console.warn('Speech Engine error:', e.error);
+            };
+
+            try {
+                speechRecognizer.start();
+                console.log('Voice Command Engine Listening...');
+            } catch(e) {
+                console.error('Failed to start voice command engine:', e);
+            }
+        }
+
+        async function handleVoiceSOS() {
+            if (!isRecording) return;
+            // 1. Instantly trigger emergency broadcast
+            await triggerEmergency();
+            // 2. Automatically halt, bake frames, download, and synchronize
+            await stopRecording();
+        }
+
         function sendGPSData(lat, lng, speed, heading) {
             if (ws && ws.readyState === WebSocket.OPEN && recordingId) {
                 ws.send(JSON.stringify({
@@ -823,6 +894,12 @@
         async function stopRecording() {
             isRecording = false;
             statusMessage.textContent = 'Saving high-quality capture...';
+
+            // Halt voice recognizer
+            if (speechRecognizer) {
+                try { speechRecognizer.stop(); } catch(e) {}
+                speechRecognizer = null;
+            }
 
             // 1. Stop MediaRecorder
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
