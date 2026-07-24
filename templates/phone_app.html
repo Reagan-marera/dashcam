@@ -399,7 +399,7 @@
                 <!-- Bottom Config Options -->
                 <div class="options-row">
                     <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Dashboard</a>
-                    <span style="font-size: 11px; color: #888;" id="gpsModeIndicator"><i class="fas fa-satellite-dish"></i> GPS Mode: Simulated</span>
+                    <span style="font-size: 11px; color: #34c759;" id="gpsModeIndicator"><i class="fas fa-satellite-dish"></i> Hardware GPS Enabled</span>
                 </div>
             </div>
         </div>
@@ -422,11 +422,9 @@
         let recordedChunks = [];
         let recExtension = 'webm';
 
-        // GPS State
-        let simulatedGPSInterval = null;
-        let useSimulation = true;
-        let currentLat = 37.7749;
-        let currentLng = -122.4194;
+        // Real GPS State Variables (Absolutely no simulation!)
+        let currentLat = 0;
+        let currentLng = 0;
         let currentSpeed = 0;
 
         // High-Precision Real GPS Speed Overrides (Bypasses null speed outputs)
@@ -438,6 +436,9 @@
         let osdCanvas = document.createElement('canvas');
         let osdCtx = osdCanvas.getContext('2d');
         let osdInterval = null;
+
+        // Continuous Voice command recognition engine using standard SpeechRecognition API
+        let speechRecognizer = null;
 
         // DOM elements
         const video = document.getElementById('video');
@@ -452,9 +453,8 @@
         const connectionStatus = document.getElementById('connectionStatus');
         const statusMessage = document.getElementById('status-message');
         const emergencyIndicator = document.getElementById('emergency-indicator');
-        const gpsModeIndicator = document.getElementById('gpsModeIndicator');
         const plateInput = document.getElementById('plateInput');
-        
+
         // Load persisted License Plate
         let currentPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
         plateInput.value = currentPlate;
@@ -487,28 +487,6 @@
                     reconnectAttempts = 0;
                 };
                 
-                ws.onmessage = function(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-
-                        // Handle GPS mode toggle broadcasted remotely from the dashboard
-                        if (data.type === 'toggle_gps_source') {
-                            useSimulation = data.use_simulation;
-                            console.log('GPS Source remotely switched to:', useSimulation ? 'Simulation' : 'Hardware');
-                            gpsModeIndicator.innerHTML = useSimulation ?
-                                '<i class="fas fa-satellite-dish"></i> GPS Mode: Simulated' :
-                                '<i class="fas fa-satellite-dish"></i> GPS Mode: Hardware';
-                            statusMessage.textContent = useSimulation ? 'GPS: Simulated Mode' : 'GPS: Hardware Mode';
-
-                            if (isRecording) {
-                                startLocationTracking();
-                            }
-                        }
-                    } catch (e) {
-                        console.error('Error handling WebSocket message:', e);
-                    }
-                };
-
                 ws.onclose = function() {
                     console.log('WebSocket disconnected');
                     connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #ff3b30;"></i> Offline';
@@ -530,7 +508,7 @@
             }
         }
         
-        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS, Plate) together at 15 FPS (Smooth & light)
+        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS, Plate) together with permanent REAGANTECH watermark
         function startOSDDrawLoop() {
             osdCanvas.width = 1280;
             osdCanvas.height = 720;
@@ -544,11 +522,18 @@
                 // 1. Draw raw camera frame
                 osdCtx.drawImage(video, 0, 0, osdCanvas.width, osdCanvas.height);
 
-                // 2. Draw black translucent banner at the bottom for HUD metadata
+                // 2. Draw permanent REAGANTECH watermark plate at top-right of every frame
+                osdCtx.fillStyle = 'rgba(10, 15, 30, 0.75)';
+                osdCtx.fillRect(osdCanvas.width - 240, 20, 200, 45);
+                osdCtx.fillStyle = '#ff9500';
+                osdCtx.font = 'bold 24px Arial, sans-serif';
+                osdCtx.fillText('REAGANTECH', osdCanvas.width - 221, 52);
+
+                // 3. Draw black translucent banner at the bottom for HUD metadata
                 osdCtx.fillStyle = 'rgba(0, 0, 0, 0.55)';
                 osdCtx.fillRect(0, osdCanvas.height - 90, osdCanvas.width, 90);
 
-                // 3. Draw Date & Time (Left bottom)
+                // 4. Draw Date & Time (Left bottom)
                 const now = new Date();
                 const dateStr = now.toLocaleDateString();
                 const timeStr = now.toLocaleTimeString();
@@ -556,13 +541,13 @@
                 osdCtx.font = '22px Arial, sans-serif';
                 osdCtx.fillText(`DATE: ${dateStr}   TIME: ${timeStr}`, 40, osdCanvas.height - 35);
 
-                // 4. Draw Speed & License Plate (Center bottom)
+                // 5. Draw Speed & License Plate (Center bottom)
                 const speedText = `SPEED: ${currentSpeed.toFixed(1)} KM/H   PLATE: ${currentPlate}`;
                 osdCtx.fillStyle = '#00ff88';
                 osdCtx.font = 'bold 26px Arial, sans-serif';
                 osdCtx.fillText(speedText, 400, osdCanvas.height - 35);
 
-                // 5. Draw GPS Coordinates (Right bottom)
+                // 6. Draw GPS Coordinates (Right bottom)
                 const gpsText = `GPS: ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`;
                 osdCtx.fillStyle = '#ffffff';
                 osdCtx.font = '20px Arial, sans-serif';
@@ -571,7 +556,7 @@
             }, 66); // 15 FPS
         }
 
-        // Start camera stream & hardware recorder
+        // Start camera stream, hardware recorder, and continuous voice recognition
         async function startRecording() {
             try {
                 // Fetch actual hardware camera stream
@@ -598,6 +583,9 @@
 
                 // Start drawing OSD frames immediately
                 startOSDDrawLoop();
+
+                // Start continuous background voice listener
+                startVoiceRecognition();
 
                 // 1. Initialize MediaRecorder for high-fidelity canvas stream recording
                 recordedChunks = [];
@@ -671,8 +659,8 @@
                         driver: 1,
                         vehicle: 1,
                         start_time: new Date().toISOString(),
-                        start_latitude: currentLat,
-                        start_longitude: currentLng,
+                        start_latitude: currentLat || 0.0,
+                        start_longitude: currentLng || 0.0,
                         is_emergency: false
                     })
                 });
@@ -694,8 +682,8 @@
                         driver: 1,
                         vehicle: 1,
                         start_time: new Date().toISOString(),
-                        start_latitude: currentLat,
-                        start_longitude: currentLng,
+                        start_latitude: currentLat || 0.0,
+                        start_longitude: currentLng || 0.0,
                         is_emergency: false
                     })
                 });
@@ -758,108 +746,132 @@
             }, 400); // 400ms interval saves 70% CPU/bandwidth, keeping recording fluid!
         }
         
-        // GPS & Telemetry Engine
+        // GPS Telemetry Engine - strictly using real hardware inputs, with dynamic Haversine fallback if speed is null
         function startLocationTracking() {
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
             }
-            if (simulatedGPSInterval) {
-                clearInterval(simulatedGPSInterval);
-                simulatedGPSInterval = null;
-            }
-            
+
             lastGpsTime = null;
             lastLat = null;
             lastLng = null;
 
-            if (useSimulation) {
-                startSimulatedGPS();
-            } else {
-                statusMessage.textContent = 'Locating device hardware GPS...';
+            statusMessage.textContent = 'Locating device hardware GPS...';
 
-                watchId = navigator.geolocation.watchPosition(
-                    (position) => {
-                        const { latitude, longitude, speed, heading } = position.coords;
+            watchId = navigator.geolocation.watchPosition(
+                (position) => {
+                    const { latitude, longitude, speed, heading } = position.coords;
 
-                        let speedKmh = 0;
-                        const now = Date.now();
+                    let speedKmh = 0;
+                    const now = Date.now();
 
-                        // Compute speed from hardware GPS or fallback to Haversine distance
-                        if (speed !== null && speed !== undefined) {
-                            speedKmh = speed * 3.6;
-                        } else if (lastLat !== null && lastLng !== null && lastGpsTime !== null) {
-                            const elapsedSeconds = (now - lastGpsTime) / 1000;
-                            if (elapsedSeconds > 0.5) {
-                                // Haversine formula
-                                const R = 6371; // Earth radius in km
-                                const dLat = (latitude - lastLat) * Math.PI / 180;
-                                const dLng = (longitude - lastLng) * Math.PI / 180;
-                                const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                                          Math.cos(lastLat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) *
-                                          Math.sin(dLng/2) * Math.sin(dLng/2);
-                                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                                const distanceKm = R * c;
-                                speedKmh = (distanceKm / elapsedSeconds) * 3600; // km/h
+                    // Compute speed from hardware GPS or fallback to Haversine distance
+                    if (speed !== null && speed !== undefined) {
+                        speedKmh = speed * 3.6;
+                    } else if (lastLat !== null && lastLng !== null && lastGpsTime !== null) {
+                        const elapsedSeconds = (now - lastGpsTime) / 1000;
+                        if (elapsedSeconds > 0.5) {
+                            // Haversine formula
+                            const R = 6371; // Earth radius in km
+                            const dLat = (latitude - lastLat) * Math.PI / 180;
+                            const dLng = (longitude - lastLng) * Math.PI / 180;
+                            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                                      Math.cos(lastLat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) *
+                                      Math.sin(dLng/2) * Math.sin(dLng/2);
+                            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                            const distanceKm = R * c;
+                            speedKmh = (distanceKm / elapsedSeconds) * 3600; // km/h
 
-                                // Clean up jitter
-                                if (speedKmh < 1.0) speedKmh = 0;
-                            }
+                            // Clean up jitter
+                            if (speedKmh < 1.0) speedKmh = 0;
                         }
-
-                        // Set current state parameters - absolutely binding GPS location and calculated speed!
-                        currentLat = latitude;
-                        currentLng = longitude;
-                        currentSpeed = speedKmh;
-
-                        lastLat = latitude;
-                        lastLng = longitude;
-                        lastGpsTime = now;
-
-                        speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
-                        gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
-                        statusMessage.textContent = 'Real GPS Active';
-
-                        sendGPSData(latitude, longitude, speedKmh, heading);
-                    },
-                    (error) => {
-                        console.error('Real GPS error:', error);
-                        statusMessage.textContent = 'GPS Error: Check permissions';
-                        gpsDisplay.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: #ff3b30;"></i> GPS Error`;
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 0
                     }
-                );
+
+                    // Set current state parameters - absolutely binding GPS location and calculated speed!
+                    currentLat = latitude;
+                    currentLng = longitude;
+                    currentSpeed = speedKmh;
+
+                    lastLat = latitude;
+                    lastLng = longitude;
+                    lastGpsTime = now;
+
+                    speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
+                    gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
+                    statusMessage.textContent = 'Real GPS Active';
+
+                    sendGPSData(latitude, longitude, speedKmh, heading);
+                },
+                (error) => {
+                    console.error('Real GPS error:', error);
+                    statusMessage.textContent = 'GPS Error: Check permissions';
+                    gpsDisplay.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: #ff3b30;"></i> GPS Error`;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 15000,
+                    maximumAge: 0
+                }
+            );
+        }
+
+        // Continuous Web Speech API Background Recognition
+        function startVoiceRecognition() {
+            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!window.SpeechRecognition) {
+                console.warn('Voice command recognition is not supported on this browser.');
+                return;
+            }
+
+            if (speechRecognizer) {
+                try { speechRecognizer.stop(); } catch(e) {}
+                speechRecognizer = null;
+            }
+
+            speechRecognizer = new window.SpeechRecognition();
+            speechRecognizer.continuous = true;
+            speechRecognizer.interimResults = false;
+            speechRecognizer.lang = 'en-US';
+
+            speechRecognizer.onresult = function(event) {
+                const lastResultIndex = event.results.length - 1;
+                const transcript = event.results[lastResultIndex][0].transcript.toLowerCase();
+                console.log('Heard Command:', transcript);
+
+                // Continuous background keywords trigger automatic SOS + local saving
+                if (transcript.includes('save') || transcript.includes('help') || transcript.includes('emergency') || transcript.includes('sos') || transcript.includes('accident')) {
+                    console.log('🚨 VOICE EMERGENCY DETECTED!');
+                    statusMessage.textContent = 'Voice command: Triggering SOS saving!';
+                    handleVoiceSOS();
+                }
+            };
+
+            speechRecognizer.onend = function() {
+                // Keep listening continuously in the background while recording is active
+                if (isRecording && speechRecognizer) {
+                    try { speechRecognizer.start(); } catch(e) {}
+                }
+            };
+
+            speechRecognizer.onerror = function(e) {
+                console.warn('Speech Engine error:', e.error);
+            };
+
+            try {
+                speechRecognizer.start();
+                console.log('Voice Command Engine Listening...');
+            } catch(e) {
+                console.error('Failed to start voice command engine:', e);
             }
         }
 
-        function startSimulatedGPS() {
-            if (simulatedGPSInterval) clearInterval(simulatedGPSInterval);
-
-            currentLat = 37.7749;
-            currentLng = -122.4194;
-            let heading = 0;
-
-            simulatedGPSInterval = setInterval(() => {
-                if (!isRecording) {
-                    clearInterval(simulatedGPSInterval);
-                    return;
-                }
-
-                // Simulate progressive driving route
-                currentLat += (Math.random() - 0.4) * 0.0001;
-                currentLng += (Math.random() - 0.3) * 0.0001;
-                currentSpeed = 40 + Math.random() * 20; // 40-60 km/h
-                heading = (heading + (Math.random() - 0.5) * 12) % 360;
-
-                speedDisplay.innerHTML = `${currentSpeed.toFixed(1)} <small>km/h</small>`;
-                gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${currentLat.toFixed(5)}<br>Lng: ${currentLng.toFixed(5)} (Sim)`;
-
-                sendGPSData(currentLat, currentLng, currentSpeed, heading);
-            }, 2000);
+        async function handleVoiceSOS() {
+            if (!isRecording) return;
+            // 1. Instantly trigger emergency broadcast
+            await triggerEmergency();
+            // 2. Automatically halt, bake frames, download, and synchronize
+            await stopRecording();
         }
 
         function sendGPSData(lat, lng, speed, heading) {
@@ -883,6 +895,12 @@
             isRecording = false;
             statusMessage.textContent = 'Saving high-quality capture...';
 
+            // Halt voice recognizer
+            if (speechRecognizer) {
+                try { speechRecognizer.stop(); } catch(e) {}
+                speechRecognizer = null;
+            }
+
             // 1. Stop MediaRecorder
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.stop();
@@ -900,10 +918,6 @@
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
-            }
-            if (simulatedGPSInterval) {
-                clearInterval(simulatedGPSInterval);
-                simulatedGPSInterval = null;
             }
             
             if (mediaStream) {
