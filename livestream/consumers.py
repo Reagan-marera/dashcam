@@ -122,6 +122,15 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
                         'use_simulation': data.get('use_simulation', True)
                     }
                 )
+
+            elif message_type == 'set_vehicle_plate':
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'set_vehicle_plate',
+                        'plate': data.get('plate', 'ABC-1234')
+                    }
+                )
                 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON received: {e}")
@@ -153,6 +162,12 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'type': 'toggle_gps_source',
             'use_simulation': event['use_simulation']
+        }))
+
+    async def set_vehicle_plate(self, event):
+        await self.send(text_data=json.dumps({
+            'type': 'set_vehicle_plate',
+            'plate': event['plate']
         }))
     
     @database_sync_to_async

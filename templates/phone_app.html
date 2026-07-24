@@ -336,6 +336,34 @@
         .back-link:hover {
             opacity: 0.8;
         }
+
+        #voice-indicator {
+            position: absolute;
+            bottom: 120px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 11px;
+            font-weight: bold;
+            color: #a5b4fc;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        @keyframes micPulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.95); }
+        }
+        .mic-active {
+            animation: micPulse 1.5s infinite;
+            color: #818cf8;
+        }
     </style>
 </head>
 <body>
@@ -362,6 +390,11 @@
                 <div id="status-message">Initializing Camera...</div>
                 <div id="time-display">00:00:00</div>
 
+                <!-- Voice Activity Indicator Badge -->
+                <div id="voice-indicator">
+                    <i class="fas fa-microphone mic-active"></i> <span id="voiceHeardText">Voice Control Active (Say "SAVE")</span>
+                </div>
+
                 <!-- Bottom Hud Elements -->
                 <div class="telemetry-hud">
                     <div class="hud-card">
@@ -386,14 +419,6 @@
                     <button class="control-btn btn-emergency" id="emergencyBtn" title="Trigger SOS"><i class="fas fa-exclamation-triangle"></i></button>
                     <button class="control-btn btn-start" id="recordBtn" title="Start Recording"><i class="fas fa-video"></i></button>
                     <button class="control-btn btn-stop" id="stopBtn" disabled title="Stop and Download"><i class="fas fa-stop"></i></button>
-                </div>
-
-                <!-- License Plate Config -->
-                <div class="options-row" style="border: none; padding-bottom: 0;">
-                    <div style="display: flex; align-items: center; gap: 8px; width: 100%;">
-                        <span style="font-size: 11px; font-weight: 600; color: #aaa; white-space: nowrap;"><i class="fas fa-id-card"></i> VEHICLE PLATE:</span>
-                        <input type="text" id="plateInput" placeholder="ABC-1234" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); color: white; border-radius: 8px; padding: 4px 10px; font-size: 12px; font-weight: 700; text-transform: uppercase; outline: none; flex: 1; text-align: center;">
-                    </div>
                 </div>
 
                 <!-- Bottom Config Options -->
@@ -453,16 +478,10 @@
         const connectionStatus = document.getElementById('connectionStatus');
         const statusMessage = document.getElementById('status-message');
         const emergencyIndicator = document.getElementById('emergency-indicator');
-        const plateInput = document.getElementById('plateInput');
+        const voiceHeardText = document.getElementById('voiceHeardText');
 
-        // Load persisted License Plate
+        // Dynamic vehicle plate updated in real-time remotely via WebSocket!
         let currentPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
-        plateInput.value = currentPlate;
-
-        plateInput.addEventListener('input', (e) => {
-            currentPlate = e.target.value.toUpperCase() || 'ABC-1234';
-            localStorage.setItem('dashcam_plate', currentPlate);
-        });
 
         // Update clock
         function updateTime() {
@@ -487,6 +506,21 @@
                     reconnectAttempts = 0;
                 };
                 
+                ws.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        // Dynamically update vehicle plate remotely from the dashboard
+                        if (data.type === 'set_vehicle_plate') {
+                            currentPlate = data.plate.toUpperCase() || 'ABC-1234';
+                            localStorage.setItem('dashcam_plate', currentPlate);
+                            console.log('Vehicle Plate dynamically synchronized to:', currentPlate);
+                        }
+                    } catch (e) {
+                        console.error('Error handling WebSocket message:', e);
+                    }
+                };
+
                 ws.onclose = function() {
                     console.log('WebSocket disconnected');
                     connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #ff3b30;"></i> Offline';
@@ -529,29 +563,33 @@
                 osdCtx.font = 'bold 24px Arial, sans-serif';
                 osdCtx.fillText('REAGANTECH', osdCanvas.width - 221, 52);
 
-                // 3. Draw black translucent banner at the bottom for HUD metadata
-                osdCtx.fillStyle = 'rgba(0, 0, 0, 0.55)';
-                osdCtx.fillRect(0, osdCanvas.height - 90, osdCanvas.width, 90);
+                // 3. Draw black translucent banner at the bottom for HUD metadata (spacious 110px layout)
+                osdCtx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+                osdCtx.fillRect(0, osdCanvas.height - 110, osdCanvas.width, 110);
 
-                // 4. Draw Date & Time (Left bottom)
+                // 4. --- Line 1 (DATE, TIME, and VEHICLE PLATE) ---
                 const now = new Date();
                 const dateStr = now.toLocaleDateString();
                 const timeStr = now.toLocaleTimeString();
                 osdCtx.fillStyle = '#ffffff';
-                osdCtx.font = '22px Arial, sans-serif';
-                osdCtx.fillText(`DATE: ${dateStr}   TIME: ${timeStr}`, 40, osdCanvas.height - 35);
+                osdCtx.font = '20px Arial, sans-serif';
+                osdCtx.fillText(`DATE: ${dateStr}   TIME: ${timeStr}`, 45, osdCanvas.height - 70);
 
-                // 5. Draw Speed & License Plate (Center bottom)
-                const speedText = `SPEED: ${currentSpeed.toFixed(1)} KM/H   PLATE: ${currentPlate}`;
+                // Plate on the right (Line 1)
+                osdCtx.fillStyle = '#ff9500';
+                osdCtx.font = 'bold 20px Arial, sans-serif';
+                osdCtx.fillText(`VEHICLE PLATE: ${currentPlate}`, osdCanvas.width - 360, osdCanvas.height - 70);
+
+                // 5. --- Line 2 (SPEED and GPS Coordinates) ---
                 osdCtx.fillStyle = '#00ff88';
-                osdCtx.font = 'bold 26px Arial, sans-serif';
-                osdCtx.fillText(speedText, 400, osdCanvas.height - 35);
+                osdCtx.font = 'bold 24px Arial, sans-serif';
+                osdCtx.fillText(`SPEED: ${currentSpeed.toFixed(1)} KM/H`, 45, osdCanvas.height - 25);
 
-                // 6. Draw GPS Coordinates (Right bottom)
+                // GPS on the right (Line 2)
                 const gpsText = `GPS: ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`;
                 osdCtx.fillStyle = '#ffffff';
                 osdCtx.font = '20px Arial, sans-serif';
-                osdCtx.fillText(gpsText, osdCanvas.width - 400, osdCanvas.height - 35);
+                osdCtx.fillText(gpsText, osdCanvas.width - 360, osdCanvas.height - 25);
 
             }, 66); // 15 FPS
         }
@@ -584,7 +622,7 @@
                 // Start drawing OSD frames immediately
                 startOSDDrawLoop();
 
-                // Start continuous background voice listener
+                // Non-simulation: start continuous background voice listener AFTER getUserMedia permission is granted!
                 startVoiceRecognition();
 
                 // 1. Initialize MediaRecorder for high-fidelity canvas stream recording
@@ -821,6 +859,7 @@
             window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!window.SpeechRecognition) {
                 console.warn('Voice command recognition is not supported on this browser.');
+                voiceHeardText.textContent = 'Voice Control: Unsup. Browser';
                 return;
             }
 
@@ -831,19 +870,37 @@
 
             speechRecognizer = new window.SpeechRecognition();
             speechRecognizer.continuous = true;
-            speechRecognizer.interimResults = false;
+            speechRecognizer.interimResults = true; // Show real-time transcribing cues!
             speechRecognizer.lang = 'en-US';
 
-            speechRecognizer.onresult = function(event) {
-                const lastResultIndex = event.results.length - 1;
-                const transcript = event.results[lastResultIndex][0].transcript.toLowerCase();
-                console.log('Heard Command:', transcript);
+            speechRecognizer.onstart = function() {
+                console.log('Speech recognition service started.');
+                voiceHeardText.innerHTML = 'Voice Control Active <span style="color:#00ff88;">(Say "SAVE")</span>';
+            };
 
-                // Continuous background keywords trigger automatic SOS + local saving
-                if (transcript.includes('save') || transcript.includes('help') || transcript.includes('emergency') || transcript.includes('sos') || transcript.includes('accident')) {
-                    console.log('🚨 VOICE EMERGENCY DETECTED!');
-                    statusMessage.textContent = 'Voice command: Triggering SOS saving!';
-                    handleVoiceSOS();
+            speechRecognizer.onresult = function(event) {
+                let interimTranscript = '';
+                let finalTranscript = '';
+
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        finalTranscript += event.results[i][0].transcript;
+                    } else {
+                        interimTranscript += event.results[i][0].transcript;
+                    }
+                }
+
+                const liveHeard = (finalTranscript || interimTranscript).trim().toLowerCase();
+                if (liveHeard) {
+                    // Update visual diagnostic transcribing cues
+                    voiceHeardText.innerHTML = `Heard: <strong style="color: #ffc107;">"${liveHeard}"</strong>`;
+
+                    // Match key command
+                    if (liveHeard.includes('save') || liveHeard.includes('help') || liveHeard.includes('emergency') || liveHeard.includes('sos') || liveHeard.includes('accident')) {
+                        console.log('🚨 VOICE EMERGENCY KEYWORD DETECTED!');
+                        voiceHeardText.innerHTML = '<span style="color:#ff3b30; font-weight:800;">🚨 VOICE SOS DETECTED! SAVING...</span>';
+                        handleVoiceSOS();
+                    }
                 }
             };
 
@@ -851,11 +908,16 @@
                 // Keep listening continuously in the background while recording is active
                 if (isRecording && speechRecognizer) {
                     try { speechRecognizer.start(); } catch(e) {}
+                } else {
+                    voiceHeardText.textContent = 'Voice Control: Standby';
                 }
             };
 
             speechRecognizer.onerror = function(e) {
                 console.warn('Speech Engine error:', e.error);
+                if (e.error === 'not-allowed') {
+                    voiceHeardText.textContent = 'Voice Control: Mic Blocked';
+                }
             };
 
             try {
