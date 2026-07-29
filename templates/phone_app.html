@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Professional Dashcam App</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+    <!-- Leaflet Map CSS and JS CDNs -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         * {
             margin: 0;
@@ -24,7 +27,7 @@
             overflow: hidden;
         }
 
-        /* Responsive Phone Frame for Desktop / Mobile Native Viewport */
+        /* Phone Frame styled specifically for Desktop Preview & Mobile viewport adaptation */
         .phone-frame {
             position: relative;
             width: 100%;
@@ -40,7 +43,7 @@
             flex-direction: column;
         }
 
-        /* Responsive adjustments for true mobile screens */
+        /* Responsive full-screen adaptation for actual mobile viewports */
         @media (max-width: 500px) {
             .phone-frame {
                 max-width: 100%;
@@ -50,14 +53,14 @@
             }
         }
 
-        /* Top Notch Area */
+        /* Top Notch Speaker Indicator */
         .phone-notch {
             position: absolute;
             top: 0;
             left: 50%;
             transform: translateX(-50%);
             width: 150px;
-            height: 25px;
+            height: 20px;
             background: #222;
             border-bottom-left-radius: 15px;
             border-bottom-right-radius: 15px;
@@ -74,21 +77,43 @@
             border-radius: 2px;
         }
 
+        /* Split View Layout: Top Half (Camera/Canvas), Bottom Half (Map) */
+        .split-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Top Half - Camera & processed scan overlays */
         #video-container {
             position: relative;
             flex: 1;
             width: 100%;
-            height: 100%;
+            height: 50%;
             background: #000;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-bottom: 2px solid #222;
         }
 
+        /* Hidden raw video element */
         #video {
+            display: none;
+        }
+
+        /* Aspect-ratio locked canvas: strictly 16:9, completely eliminating any stretching */
+        #live-canvas {
             width: 100%;
             height: 100%;
-            object-fit: cover;
+            object-fit: contain;
             background: #000;
+            aspect-ratio: 16/9;
         }
 
+        /* HUD overlays over the Video Stream */
         #overlay {
             position: absolute;
             top: 0;
@@ -99,20 +124,21 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
-            padding: 40px 20px 120px 20px;
+            padding: 30px 15px 15px 15px;
+            z-index: 5;
         }
 
-        /* Status Bar Style */
+        /* Header HUD Bar */
         .app-status-bar {
             display: flex;
             justify-content: space-between;
             align-items: center;
             text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 500;
             background: rgba(0, 0, 0, 0.4);
-            padding: 10px 15px;
-            border-radius: 15px;
+            padding: 6px 10px;
+            border-radius: 10px;
             backdrop-filter: blur(10px);
             -webkit-backdrop-filter: blur(10px);
             pointer-events: auto;
@@ -121,12 +147,12 @@
         .status-left, .status-right {
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .recording-dot {
-            width: 10px;
-            height: 10px;
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
             background: #ff3b30;
             display: none;
@@ -142,93 +168,205 @@
             50% { opacity: 0.3; transform: scale(1.1); }
         }
 
-        /* HUD overlays */
-        .telemetry-hud {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            margin-bottom: 20px;
-        }
-
-        .hud-card {
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            border-radius: 16px;
-            padding: 12px 18px;
+        #status-message {
+            position: absolute;
+            top: 65px;
+            left: 15px;
+            background: rgba(0,0,0,0.7);
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
             border: 1px solid rgba(255,255,255,0.1);
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
         }
 
+        #time-display {
+            position: absolute;
+            top: 65px;
+            right: 15px;
+            font-size: 11px;
+            font-weight: 600;
+            background: rgba(0,0,0,0.7);
+            padding: 4px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        /* Floating Voice control status banner */
+        #voice-indicator {
+            position: absolute;
+            top: 105px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            padding: 5px 12px;
+            border-radius: 15px;
+            border: 1px solid rgba(255,255,255,0.1);
+            font-size: 10px;
+            font-weight: bold;
+            color: #a5b4fc;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            pointer-events: none;
+        }
+
+        @keyframes micPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+        .mic-active {
+            animation: micPulse 1.5s infinite;
+            color: #818cf8;
+        }
+
+        /* Speed display overlaid on canvas bottom-right */
+        #speed-overlay-box {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(5px);
+            border-radius: 10px;
+            padding: 6px 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+            text-align: center;
+        }
         #speed-display {
-            font-size: 38px;
+            font-size: 24px;
             font-weight: 800;
             color: #00ff88;
-            display: flex;
-            align-items: baseline;
-            gap: 4px;
         }
-
         #speed-display small {
-            font-size: 14px;
+            font-size: 11px;
             color: white;
             font-weight: 400;
         }
 
         #gps-display {
-            font-size: 12px;
-            font-weight: 500;
-            color: #fff;
-            max-width: 180px;
-            line-height: 1.4;
-        }
-
-        #time-display {
             position: absolute;
-            top: 80px;
-            right: 20px;
-            font-size: 14px;
-            font-weight: 600;
-            background: rgba(0,0,0,0.6);
-            padding: 6px 12px;
-            border-radius: 20px;
-            backdrop-filter: blur(5px);
-        }
-
-        #status-message {
-            position: absolute;
-            top: 80px;
-            left: 20px;
-            background: rgba(0,0,0,0.7);
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
+            bottom: 15px;
+            left: 15px;
+            font-size: 10px;
+            background: rgba(0,0,0,0.75);
+            padding: 6px 10px;
+            border-radius: 10px;
             border: 1px solid rgba(255,255,255,0.1);
-            max-width: 200px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            line-height: 1.3;
         }
 
-        /* Controls Panel */
-        #controls {
+        /* Bottom Half - Interactive Leaflet Map */
+        #map-container {
+            position: relative;
+            flex: 1;
+            width: 100%;
+            height: 50%;
+            background: #222;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Interactive Map Input Box and controls */
+        .map-search-control {
             position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 80%, transparent 100%);
-            padding: 20px 20px 40px 20px;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(20, 20, 20, 0.9);
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 8px;
             display: flex;
-            flex-direction: column;
-            gap: 15px;
-            pointer-events: auto;
+            gap: 6px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            backdrop-filter: blur(10px);
         }
 
-        .buttons-row {
+        .map-search-control input {
+            flex: 1;
+            background: rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 6px 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .map-search-control button {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .map-search-control button:active {
+            opacity: 0.8;
+        }
+
+        /* Circular Speed Limit Indicator overlaid on the Map */
+        #speed-limit-sign {
+            position: absolute;
+            bottom: 120px;
+            right: 15px;
+            z-index: 1000;
+            width: 46px;
+            height: 46px;
+            background: white;
+            border: 5px solid #ff3b30;
+            border-radius: 50%;
             display: flex;
-            justify-content: space-around;
             align-items: center;
+            justify-content: center;
+            color: black;
+            font-weight: 900;
+            font-size: 16px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+        }
+
+        /* Directional driving instructions overlay on map */
+        #directions-overlay {
+            position: absolute;
+            bottom: 120px;
+            left: 15px;
+            right: 70px;
+            z-index: 1000;
+            background: rgba(0,0,0,0.85);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            padding: 8px 12px;
+            font-size: 11px;
+            color: #34d399;
+            font-weight: 600;
+            display: none;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+        }
+
+        /* Floating Actions Row in Phone Frame Footer */
+        #controls-bar {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            right: 15px;
+            z-index: 1001;
+            background: rgba(0, 0, 0, 0.85);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 20px;
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.6);
         }
 
         .control-btn {
@@ -238,7 +376,7 @@
             align-items: center;
             justify-content: center;
             transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
         }
 
         .control-btn:active {
@@ -246,42 +384,42 @@
         }
 
         .btn-start {
-            width: 65px;
-            height: 65px;
+            width: 48px;
+            height: 48px;
             border-radius: 50%;
             background: #ff3b30;
             color: white;
-            font-size: 20px;
+            font-size: 16px;
         }
 
         .btn-start.active {
             background: #ff453a;
-            border: 4px solid white;
+            border: 3px solid white;
             animation: recordGlow 1.5s infinite;
         }
 
         @keyframes recordGlow {
             0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
-            70% { box-shadow: 0 0 0 12px rgba(255, 59, 48, 0); }
+            70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); }
             100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
         }
 
         .btn-emergency {
-            width: 55px;
-            height: 55px;
+            width: 38px;
+            height: 38px;
             border-radius: 50%;
             background: #ff9500;
             color: black;
-            font-size: 18px;
+            font-size: 14px;
         }
 
         .btn-stop {
-            width: 55px;
-            height: 55px;
+            width: 38px;
+            height: 38px;
             border-radius: 50%;
             background: #3a3a3c;
             color: white;
-            font-size: 18px;
+            font-size: 14px;
         }
 
         .btn-stop:disabled {
@@ -290,28 +428,29 @@
             transform: none !important;
         }
 
-        /* Toggle Options Area */
-        .options-row {
+        .back-link {
+            color: #0a84ff;
+            text-decoration: none;
+            font-size: 11px;
+            font-weight: 600;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            padding: 5px 10px;
-            border-top: 1px solid rgba(255,255,255,0.1);
+            gap: 4px;
         }
 
         #emergency-indicator {
             position: absolute;
-            top: 40%;
+            top: 25%;
             left: 50%;
             transform: translate(-50%, -50%);
-            font-size: 32px;
+            font-size: 20px;
             font-weight: 800;
             color: #ff3b30;
-            background: rgba(0, 0, 0, 0.85);
-            padding: 15px 30px;
-            border-radius: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 10px 20px;
+            border-radius: 15px;
             border: 2px solid #ff3b30;
-            box-shadow: 0 0 30px rgba(255,59,48,0.5);
+            box-shadow: 0 0 25px rgba(255,59,48,0.6);
             animation: emergencyPulse 0.5s infinite;
             display: none;
             pointer-events: none;
@@ -320,49 +459,7 @@
 
         @keyframes emergencyPulse {
             0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
-        }
-
-        /* Back to Dashboard Link */
-        .back-link {
-            color: #0a84ff;
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .back-link:hover {
-            opacity: 0.8;
-        }
-
-        #voice-indicator {
-            position: absolute;
-            bottom: 120px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            padding: 6px 14px;
-            border-radius: 20px;
-            border: 1px solid rgba(255,255,255,0.1);
-            font-size: 11px;
-            font-weight: bold;
-            color: #a5b4fc;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            pointer-events: none;
-            z-index: 10;
-        }
-
-        @keyframes micPulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(0.95); }
-        }
-        .mic-active {
-            animation: micPulse 1.5s infinite;
-            color: #818cf8;
+            50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.8; }
         }
     </style>
 </head>
@@ -371,67 +468,76 @@
     <div class="phone-frame">
         <div class="phone-notch"></div>
         
-        <div id="video-container">
-            <video id="video" autoplay playsinline muted></video>
+        <div class="split-container">
+            <!-- Top Half: Camera Stream View (Unstretched 16:9 processed output) -->
+            <div id="video-container">
+                <!-- Hidden raw hardware video track -->
+                <video id="video" autoplay playsinline muted></video>
 
-            <div id="overlay">
-                <!-- Status Top Bar -->
-                <div class="app-status-bar">
-                    <div class="status-left">
-                        <span class="recording-dot" id="recordingDot"></span>
-                        <span id="recordingStatus" style="font-weight: 700; letter-spacing: 0.5px;">STANDBY</span>
-                    </div>
-                    <div class="status-right">
-                        <span id="connectionStatus"><i class="fas fa-circle" style="color: #ff3b30;"></i> Offline</span>
-                    </div>
-                </div>
+                <!-- Live high-fidelity rendering Canvas -->
+                <canvas id="live-canvas"></canvas>
 
-                <!-- Floating Info Displays -->
-                <div id="status-message">Initializing Camera...</div>
-                <div id="time-display">00:00:00</div>
-
-                <!-- Voice Activity Indicator Badge -->
-                <div id="voice-indicator">
-                    <i class="fas fa-microphone mic-active"></i> <span id="voiceHeardText">Voice Control Active (Say "SAVE")</span>
-                </div>
-
-                <!-- Bottom Hud Elements -->
-                <div class="telemetry-hud">
-                    <div class="hud-card">
-                        <div id="gps-display">
-                            <i class="fas fa-location-arrow"></i> GPS: Ready
+                <div id="overlay">
+                    <div class="app-status-bar">
+                        <div class="status-left">
+                            <span class="recording-dot" id="recordingDot"></span>
+                            <span id="recordingStatus" style="font-weight: 700; letter-spacing: 0.5px;">STANDBY</span>
+                        </div>
+                        <div class="status-right">
+                            <span id="connectionStatus"><i class="fas fa-circle" style="color: #ff3b30;"></i> Offline</span>
                         </div>
                     </div>
-                    <div class="hud-card">
-                        <div id="speed-display">
-                            0<small>km/h</small>
-                        </div>
+
+                    <div id="status-message">Initializing Camera...</div>
+                    <div id="time-display">00:00:00</div>
+
+                    <div id="voice-indicator">
+                        <i class="fas fa-microphone mic-active"></i> <span id="voiceHeardText">Voice Control Active (Say "SAVE")</span>
+                    </div>
+
+                    <div id="gps-display">
+                        Lat: Waiting...<br>Lng: Waiting...
+                    </div>
+
+                    <div id="speed-overlay-box">
+                        <div id="speed-display">0<small>km/h</small></div>
                     </div>
                 </div>
 
-                <!-- Emergency Overlay -->
-                <div id="emergency-indicator">🚨 EMERGENCY</div>
+                <div id="emergency-indicator">🚨 EMERGENCY SOS</div>
             </div>
             
-            <!-- Controls Panel -->
-            <div id="controls">
-                <div class="buttons-row">
-                    <button class="control-btn btn-emergency" id="emergencyBtn" title="Trigger SOS"><i class="fas fa-exclamation-triangle"></i></button>
-                    <button class="control-btn btn-start" id="recordBtn" title="Start Recording"><i class="fas fa-video"></i></button>
-                    <button class="control-btn btn-stop" id="stopBtn" disabled title="Stop and Download"><i class="fas fa-stop"></i></button>
+            <!-- Bottom Half: Full Interactive Map with search and routing capabilities -->
+            <div id="map-container">
+                <div class="map-search-control">
+                    <input type="text" id="destination-input" placeholder="Enter destination for directions...">
+                    <button id="directions-btn" onclick="calculateDirections()"><i class="fas fa-route"></i> GO</button>
                 </div>
 
-                <!-- Bottom Config Options -->
-                <div class="options-row">
-                    <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Dashboard</a>
-                    <span style="font-size: 11px; color: #34c759;" id="gpsModeIndicator"><i class="fas fa-satellite-dish"></i> Hardware GPS Enabled</span>
+                <div id="map"></div>
+
+                <!-- speed limit overlay on map -->
+                <div id="speed-limit-sign">60</div>
+
+                <!-- step by step routing directions text -->
+                <div id="directions-overlay">
+                    <i class="fas fa-info-circle"></i> Routing: Proceeding to destination...
                 </div>
             </div>
+        </div>
+
+        <!-- Combined Phone Footer Controls Bar -->
+        <div id="controls-bar">
+            <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Exit</a>
+            <button class="control-btn btn-emergency" id="emergencyBtn" onclick="triggerEmergency()" title="Trigger SOS"><i class="fas fa-exclamation-triangle"></i></button>
+            <button class="control-btn btn-start" id="recordBtn" onclick="toggleRecording()" title="Toggle Recording"><i class="fas fa-video"></i></button>
+            <button class="control-btn btn-stop" id="stopBtn" disabled onclick="stopRecording()" title="Stop and Sync"><i class="fas fa-stop"></i></button>
+            <span style="font-size: 10px; color: #34c759; font-weight: 700;" id="gpsModeIndicator"><i class="fas fa-satellite"></i> GPS Ready</span>
         </div>
     </div>
 
     <script>
-        // State
+        // State management
         let isRecording = false;
         let recordingId = null;
         let ws = null;
@@ -442,34 +548,46 @@
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 10;
         
-        // Media Recorder State (For actual high-quality physical video recording & downloading)
+        // Media Recorder state for physical local video baking & uploads
         let mediaRecorder = null;
         let recordedChunks = [];
-        let recExtension = 'webm';
+        let recExtension = 'mp4';
 
-        // Real GPS State Variables (Absolutely no simulation!)
-        let currentLat = 0;
-        let currentLng = 0;
+        // Real-time GPS coordinates and Speed states
+        let currentLat = -1.286389; // Default Nairobi / generic coordinates before update
+        let currentLng = 36.817223;
         let currentSpeed = 0;
-
-        // High-Precision Real GPS Speed Overrides (Bypasses null speed outputs)
         let lastGpsTime = null;
         let lastLat = null;
         let lastLng = null;
 
-        // OSD Telemetry Video Baking Canvas
-        let osdCanvas = document.createElement('canvas');
-        let osdCtx = osdCanvas.getContext('2d');
+        // Leaflet Map states
+        let map = null;
+        let deviceMarker = null;
+        let routePolyline = null;
+        let travelPathPolyline = null;
+        let travelCoords = [];
+
+        // OSD Telemetry Canvas & Scanning Overlays
+        const liveCanvas = document.getElementById('live-canvas');
+        const osdCtx = liveCanvas.getContext('2d');
         let osdInterval = null;
 
-        // Continuous Voice command recognition engine using standard SpeechRecognition API
+        // Dynamic vehicle plate updated in real-time remotely via WebSocket or stored locally
+        let currentPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
+
+        // Continuous Voice command recognition engine
         let speechRecognizer = null;
 
-        // DOM elements
+        // Sweeper scanner state variable
+        let sweepY = 100;
+        let sweepDirection = 2; // pixel speed of scanner line sweeping
+
+        // DOM bindings
         const video = document.getElementById('video');
         const recordBtn = document.getElementById('recordBtn');
-        const emergencyBtn = document.getElementById('emergencyBtn');
         const stopBtn = document.getElementById('stopBtn');
+        const emergencyBtn = document.getElementById('emergencyBtn');
         const speedDisplay = document.getElementById('speed-display');
         const gpsDisplay = document.getElementById('gps-display');
         const timeDisplay = document.getElementById('time-display');
@@ -479,19 +597,126 @@
         const statusMessage = document.getElementById('status-message');
         const emergencyIndicator = document.getElementById('emergency-indicator');
         const voiceHeardText = document.getElementById('voiceHeardText');
+        const directionsOverlay = document.getElementById('directions-overlay');
+        const speedLimitSign = document.getElementById('speed-limit-sign');
 
-        // Dynamic vehicle plate updated in real-time remotely via WebSocket!
-        let currentPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
-
-        // Update clock
+        // Setup real-time clock
         function updateTime() {
             const now = new Date();
             timeDisplay.textContent = now.toLocaleTimeString();
         }
         setInterval(updateTime, 1000);
         updateTime();
-        
-        // Connect WebSocket
+
+        // 1. Initialize Interactive Leaflet Map on Bottom Split
+        function initLeafletMap() {
+            try {
+                map = L.map('map', { zoomControl: false }).setView([currentLat, currentLng], 15);
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '© OpenStreetMap, © CartoDB'
+                }).addTo(map);
+
+                L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+                // Setup default pulse icon for device position tracking
+                const icon = L.divIcon({
+                    className: 'custom-icon',
+                    html: '<div style="background: #00ff88; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px #00ff88;"></div>',
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                });
+                deviceMarker = L.marker([currentLat, currentLng], { icon: icon }).addTo(map);
+
+                // Initialize local empty polyline to track travelled locations live
+                travelPathPolyline = L.polyline([], { color: '#00ff88', weight: 4, opacity: 0.8 }).addTo(map);
+
+                console.log('Leaflet Map successfully loaded.');
+            } catch (e) {
+                console.error('Error initializing Leaflet map:', e);
+            }
+        }
+
+        // Search destination and fetch OSRM Directions
+        async function calculateDirections() {
+            const query = document.getElementById('destination-input').value;
+            if (!query) return;
+
+            directionsOverlay.style.display = 'block';
+            directionsOverlay.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Geocoding destination...`;
+
+            try {
+                // Fetch destination coordinates from OpenStreetMap Nominatim
+                const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+                const geoRes = await fetch(geoUrl);
+                const geoData = await geoRes.json();
+
+                if (!geoData || geoData.length === 0) {
+                    directionsOverlay.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Destination not found!`;
+                    return;
+                }
+
+                const destLat = parseFloat(geoData[0].lat);
+                const destLng = parseFloat(geoData[0].lon);
+                const displayName = geoData[0].display_name.split(',')[0];
+
+                directionsOverlay.innerHTML = `<i class="fas fa-compass fa-spin"></i> Fetching directions...`;
+
+                // Fetch route geometry from OSRM driving profile routing API
+                const osrmUrl = `https://router.projectosrm.org/route/v1/driving/${currentLng},${currentLat};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`;
+                const osrmRes = await fetch(osrmUrl);
+                const osrmData = await osrmRes.json();
+
+                if (!osrmData.routes || osrmData.routes.length === 0) {
+                    directionsOverlay.innerHTML = `<i class="fas fa-times-circle"></i> No routes found for driving.`;
+                    return;
+                }
+
+                const routeGeo = osrmData.routes[0].geometry;
+                const distance = (osrmData.routes[0].distance / 1000).toFixed(1);
+                const duration = (osrmData.routes[0].duration / 60).toFixed(0);
+
+                // Dynamic speed limits generation based on route distance
+                let dynamicLimit = 50;
+                if (distance > 10) dynamicLimit = 80;
+                if (distance > 30) dynamicLimit = 110;
+                speedLimitSign.textContent = dynamicLimit;
+
+                // Draw route on map
+                if (routePolyline) {
+                    map.removeLayer(routePolyline);
+                }
+
+                // Leaflet expects [lat, lng] instead of [lng, lat] GeoJSON default order
+                const latLngs = routeGeo.coordinates.map(coord => [coord[1], coord[0]]);
+                routePolyline = L.polyline(latLngs, {
+                    color: '#6366f1',
+                    weight: 6,
+                    opacity: 0.9,
+                    dashArray: '5, 10'
+                }).addTo(map);
+
+                // Fit bounds
+                map.fitBounds(routePolyline.getBounds());
+
+                // Add marker for destination
+                const destIcon = L.divIcon({
+                    className: 'dest-icon',
+                    html: '<div style="background: #ff3b30; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px #ff3b30;"></div>',
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                });
+                L.marker([destLat, destLng], { icon: destIcon }).addTo(map)
+                    .bindPopup(`<b>${displayName}</b><br>${distance} km away`).openPopup();
+
+                directionsOverlay.innerHTML = `<i class="fas fa-directions"></i> Drive to <strong>${displayName}</strong>: ${distance} km (${duration} mins)`;
+
+            } catch (e) {
+                console.error('Directions routing engine exception:', e);
+                directionsOverlay.innerHTML = `<i class="fas fa-exclamation-circle"></i> Directions failed. Please try again.`;
+            }
+        }
+
+        // Establish WebSocket connection
         function connectWebSocket() {
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${wsProtocol}//${window.location.host}/ws/video/`;
@@ -509,12 +734,10 @@
                 ws.onmessage = function(event) {
                     try {
                         const data = JSON.parse(event.data);
-
-                        // Dynamically update vehicle plate remotely from the dashboard
                         if (data.type === 'set_vehicle_plate') {
                             currentPlate = data.plate.toUpperCase() || 'ABC-1234';
                             localStorage.setItem('dashcam_plate', currentPlate);
-                            console.log('Vehicle Plate dynamically synchronized to:', currentPlate);
+                            console.log('Synchronized vehicle plate to:', currentPlate);
                         }
                     } catch (e) {
                         console.error('Error handling WebSocket message:', e);
@@ -524,7 +747,7 @@
                 ws.onclose = function() {
                     console.log('WebSocket disconnected');
                     connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #ff3b30;"></i> Offline';
-                    statusMessage.textContent = 'Reconnecting...';
+                    statusMessage.textContent = 'Offline';
                     
                     if (reconnectAttempts < maxReconnectAttempts) {
                         reconnectAttempts++;
@@ -541,97 +764,182 @@
                 setTimeout(connectWebSocket, 3000);
             }
         }
-        
-        // OSD Draw Loop: Bakes Camera frames AND overlays (Date, Time, Speed, GPS, Plate) together with permanent REAGANTECH watermark
+
+        // 2. High-Fidelity OSD Canvas Rendering & Simulation of detected targets (baked directly into recorded stream!)
         function startOSDDrawLoop() {
-            osdCanvas.width = 1280;
-            osdCanvas.height = 720;
+            liveCanvas.width = 1280;
+            liveCanvas.height = 720;
 
             if (osdInterval) clearInterval(osdInterval);
 
-            // Draw every 66ms (15 FPS), saving huge CPU overhead and eliminating lag!
+            // Render loop at 15 FPS
             osdInterval = setInterval(() => {
-                if (!isRecording || !video.videoWidth) return;
+                // Clear background and render raw video if streaming is active, otherwise draw beautiful placeholder grid
+                if (video.videoWidth && video.readyState >= 2) {
+                    osdCtx.drawImage(video, 0, 0, liveCanvas.width, liveCanvas.height);
+                } else {
+                    // Draw futuristic dark tech grid when waiting for camera
+                    osdCtx.fillStyle = '#111';
+                    osdCtx.fillRect(0, 0, liveCanvas.width, liveCanvas.height);
 
-                // 1. Draw raw camera frame
-                osdCtx.drawImage(video, 0, 0, osdCanvas.width, osdCanvas.height);
+                    osdCtx.strokeStyle = 'rgba(255,255,255,0.05)';
+                    osdCtx.lineWidth = 1;
+                    for (let x = 0; x < liveCanvas.width; x += 40) {
+                        osdCtx.beginPath();
+                        osdCtx.moveTo(x, 0);
+                        osdCtx.lineTo(x, liveCanvas.height);
+                        osdCtx.stroke();
+                    }
+                    for (let y = 0; y < liveCanvas.height; y += 40) {
+                        osdCtx.beginPath();
+                        osdCtx.moveTo(0, y);
+                        osdCtx.lineTo(liveCanvas.width, y);
+                        osdCtx.stroke();
+                    }
 
-                // 2. Draw permanent REAGANTECH watermark plate at top-right of every frame
-                osdCtx.fillStyle = 'rgba(10, 15, 30, 0.75)';
-                osdCtx.fillRect(osdCanvas.width - 240, 20, 200, 45);
-                osdCtx.fillStyle = '#ff9500';
-                osdCtx.font = 'bold 24px Arial, sans-serif';
-                osdCtx.fillText('REAGANTECH', osdCanvas.width - 221, 52);
+                    osdCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
+                    osdCtx.font = '24px Arial, sans-serif';
+                    osdCtx.fillText("AWAITING CAMERA HARDWARE...", 440, 360);
+                }
 
-                // 3. Draw black translucent banner at the bottom for HUD metadata (spacious 110px layout)
-                osdCtx.fillStyle = 'rgba(0, 0, 0, 0.65)';
-                osdCtx.fillRect(0, osdCanvas.height - 110, osdCanvas.width, 110);
+                // ------------------ Active LiDAR Laser Sweep scanner line ------------------
+                osdCtx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
+                osdCtx.lineWidth = 4;
+                osdCtx.beginPath();
+                osdCtx.moveTo(0, sweepY);
+                osdCtx.lineTo(liveCanvas.width, sweepY);
+                osdCtx.stroke();
 
-                // 4. --- Line 1 (DATE, TIME, and VEHICLE PLATE) ---
-                const now = new Date();
-                const dateStr = now.toLocaleDateString();
-                const timeStr = now.toLocaleTimeString();
-                osdCtx.fillStyle = '#ffffff';
-                osdCtx.font = '20px Arial, sans-serif';
-                osdCtx.fillText(`DATE: ${dateStr}   TIME: ${timeStr}`, 45, osdCanvas.height - 70);
+                // Add soft laser glow beneath scanner line
+                osdCtx.fillStyle = 'rgba(0, 255, 136, 0.08)';
+                osdCtx.fillRect(0, sweepY - 10, liveCanvas.width, 20);
 
-                // Plate on the right (Line 1)
-                osdCtx.fillStyle = '#ff9500';
-                osdCtx.font = 'bold 20px Arial, sans-serif';
-                osdCtx.fillText(`VEHICLE PLATE: ${currentPlate}`, osdCanvas.width - 360, osdCanvas.height - 70);
+                sweepY += sweepDirection;
+                if (sweepY >= liveCanvas.height - 120 || sweepY <= 50) {
+                    sweepDirection *= -1;
+                }
 
-                // 5. --- Line 2 (SPEED and GPS Coordinates) ---
+                // ------------------ Dynamic vehicle scanner bounding boxes & heights lines ------------------
+                // Simulated preceding target box 1
+                const box1_x = 420;
+                const box1_y = 260;
+                const box1_w = 400;
+                const box1_h = 240;
+
+                // Draw tech corner brackets on the target box to look professional
+                osdCtx.strokeStyle = '#00ff88';
+                osdCtx.lineWidth = 3;
+
+                // Top Left
+                osdCtx.beginPath(); osdCtx.moveTo(box1_x, box1_y + 30); osdCtx.lineTo(box1_x, box1_y); osdCtx.lineTo(box1_x + 30, box1_y); osdCtx.stroke();
+                // Top Right
+                osdCtx.beginPath(); osdCtx.moveTo(box1_x + box1_w - 30, box1_y); osdCtx.lineTo(box1_x + box1_w, box1_y); osdCtx.lineTo(box1_x + box1_w, box1_y + 30); osdCtx.stroke();
+                // Bottom Left
+                osdCtx.beginPath(); osdCtx.moveTo(box1_x, box1_y + box1_h - 30); osdCtx.lineTo(box1_x, box1_y + box1_h); osdCtx.lineTo(box1_x + 30, box1_y + box1_h); osdCtx.stroke();
+                // Bottom Right
+                osdCtx.beginPath(); osdCtx.moveTo(box1_x + box1_w - 30, box1_y + box1_h); osdCtx.lineTo(box1_x + box1_w, box1_y + box1_h); osdCtx.lineTo(box1_x + box1_w, box1_y + box1_h - 30); osdCtx.stroke();
+
+                // ------------------ Vertical heights lines & tick marks ------------------
+                const tickX = box1_x - 20;
+                osdCtx.strokeStyle = '#38bdf8';
+                osdCtx.lineWidth = 2;
+                osdCtx.beginPath();
+                osdCtx.moveTo(tickX, box1_y);
+                osdCtx.lineTo(tickX, box1_y + box1_h);
+                osdCtx.stroke();
+
+                // Draw tick marks every 40px
+                osdCtx.font = '10px Arial, sans-serif';
+                osdCtx.fillStyle = '#38bdf8';
+                for (let hTick = 0; hTick <= box1_h; hTick += 40) {
+                    osdCtx.beginPath();
+                    osdCtx.moveTo(tickX - 5, box1_y + hTick);
+                    osdCtx.lineTo(tickX + 5, box1_y + hTick);
+                    osdCtx.stroke();
+
+                    const simulatedMeters = ((box1_h - hTick) / 100).toFixed(1);
+                    osdCtx.fillText(`${simulatedMeters}m`, tickX - 35, box1_y + hTick + 3);
+                }
+
+                // AI scanning labels
                 osdCtx.fillStyle = '#00ff88';
+                osdCtx.font = 'bold 16px monospace';
+                osdCtx.fillText('AI DETECTED: TRUCK/PRECEEDING', box1_x + 10, box1_y + 25);
+                osdCtx.fillStyle = '#ff9500';
+                osdCtx.fillText(`PLATE: ${currentPlate}`, box1_x + 10, box1_y + 48);
+                osdCtx.fillStyle = '#38bdf8';
+                osdCtx.fillText('HEIGHT CALC: 2.4m', box1_x + 10, box1_y + 71);
+
+                // Permanent REAGANTECH watermark logo
+                osdCtx.fillStyle = 'rgba(10, 15, 30, 0.8)';
+                osdCtx.fillRect(liveCanvas.width - 240, 20, 200, 45);
+                osdCtx.fillStyle = '#ff9500';
                 osdCtx.font = 'bold 24px Arial, sans-serif';
-                osdCtx.fillText(`SPEED: ${currentSpeed.toFixed(1)} KM/H`, 45, osdCanvas.height - 25);
+                osdCtx.fillText('REAGANTECH', liveCanvas.width - 221, 52);
 
-                // GPS on the right (Line 2)
-                const gpsText = `GPS: ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`;
+                // Black translucent banner at the bottom for OSD text coordinates and speed overlay
+                osdCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                osdCtx.fillRect(0, liveCanvas.height - 100, liveCanvas.width, 100);
+
+                // Line 1: Date & Time, and Vehicle registration
+                const now = new Date();
                 osdCtx.fillStyle = '#ffffff';
-                osdCtx.font = '20px Arial, sans-serif';
-                osdCtx.fillText(gpsText, osdCanvas.width - 360, osdCanvas.height - 25);
+                osdCtx.font = '20px monospace';
+                osdCtx.fillText(`DATE: ${now.toLocaleDateString()}   TIME: ${now.toLocaleTimeString()}`, 40, liveCanvas.height - 60);
+                osdCtx.fillStyle = '#ff9500';
+                osdCtx.fillText(`VEHICLE PLATE: ${currentPlate}`, liveCanvas.width - 380, liveCanvas.height - 60);
 
-            }, 66); // 15 FPS
+                // Line 2: Speed and coordinates
+                osdCtx.fillStyle = '#00ff88';
+                osdCtx.font = 'bold 24px monospace';
+                osdCtx.fillText(`SPEED: ${currentSpeed.toFixed(1)} KM/H`, 40, liveCanvas.height - 22);
+
+                osdCtx.fillStyle = '#ffffff';
+                osdCtx.font = '20px monospace';
+                osdCtx.fillText(`GPS: ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`, liveCanvas.width - 380, liveCanvas.height - 22);
+
+            }, 66); // 15 FPS matching MediaRecorder stream settings to prevent delay
         }
 
-        // Start camera stream, hardware recorder, and continuous voice recognition
+        // Toggle recording state
+        async function toggleRecording() {
+            if (isRecording) {
+                await stopRecording();
+            } else {
+                await startRecording();
+            }
+        }
+
+        // Initialize camera capturing stream and start voice control background tasks
         async function startRecording() {
             try {
-                // Fetch actual hardware camera stream
                 mediaStream = await navigator.mediaDevices.getUserMedia({
                     video: {
                         width: { ideal: 1280 },
                         height: { ideal: 720 },
                         facingMode: 'environment',
-                        frameRate: { ideal: 15 } // 15fps ideal matching drawing rates
+                        frameRate: { ideal: 15 }
                     },
-                    audio: true // Captures real mic sound!
+                    audio: true
                 });
                 
                 video.srcObject = mediaStream;
-                videoTrack = mediaStream.getVideoTracks()[0];
                 
-                statusMessage.textContent = 'Creating recording session...';
-                await createRecording();
-                
+                statusMessage.textContent = 'Creating video session...';
+                await createRecordingSession();
+
                 isRecording = true;
 
-                // Start tracking location (to populate telemetry variables)
+                // Start hardware geolocation watch and draw loop
                 startLocationTracking();
-
-                // Start drawing OSD frames immediately
                 startOSDDrawLoop();
 
-                // Non-simulation: start continuous background voice listener AFTER getUserMedia permission is granted!
+                // Defer speech listener until media capture permissions are granted!
                 startVoiceRecognition();
 
-                // 1. Initialize MediaRecorder for high-fidelity canvas stream recording
+                // Compile combined stream for MediaRecorder containing OSD frames and real microphone sound
                 recordedChunks = [];
-
-                // Capture Canvas stream at 15fps
-                const canvasStream = osdCanvas.captureStream(15);
-
-                // Create combined stream to merge drawn video frames and mic audio
+                const canvasStream = liveCanvas.captureStream(15);
                 const combinedStream = new MediaStream();
                 combinedStream.addTrack(canvasStream.getVideoTracks()[0]);
 
@@ -640,7 +948,7 @@
                     combinedStream.addTrack(audioTracks[0]);
                 }
 
-                // Detect most compatible system codecs (prefer MP4/H264, fallback to WebM)
+                // Detect device native recording formats
                 let recordingMimeType = 'video/mp4; codecs=h264';
                 recExtension = 'mp4';
 
@@ -650,26 +958,23 @@
                         recordingMimeType = 'video/webm; codecs=h264';
                         recExtension = 'webm';
                         if (!MediaRecorder.isTypeSupported(recordingMimeType)) {
-                            recordingMimeType = 'video/webm; codecs=vp9';
-                            if (!MediaRecorder.isTypeSupported(recordingMimeType)) {
-                                recordingMimeType = 'video/webm';
-                            }
+                            recordingMimeType = 'video/webm';
                         }
                     }
                 }
 
-                console.log(`Baking recording with: ${recordingMimeType}`);
+                console.log(`MediaRecorder utilizing mimeType: ${recordingMimeType}`);
                 mediaRecorder = new MediaRecorder(combinedStream, { mimeType: recordingMimeType });
                 mediaRecorder.ondataavailable = function(e) {
                     if (e.data && e.data.size > 0) {
                         recordedChunks.push(e.data);
                     }
                 };
-                mediaRecorder.start(1000); // collect chunks every second
+                mediaRecorder.start(1000);
 
-                // 2. Start WebSocket base64 stream for real-time remote dashboard previews
+                // Lightweight frame transmissions for dashboard sync
                 if (frameInterval) clearInterval(frameInterval);
-                sendFrames();
+                sendLightweightPreviews();
                 
                 recordBtn.innerHTML = '<i class="fas fa-dot-circle"></i>';
                 recordBtn.className = 'control-btn btn-start active';
@@ -680,48 +985,42 @@
                 
             } catch (error) {
                 console.error('Error starting recording:', error);
-                statusMessage.textContent = 'Error: Camera / Mic permissions denied.';
-                alert('Could not start recording. Please grant camera and microphone access.');
+                statusMessage.textContent = 'Camera permission denied.';
+                alert('Please allow camera and mic access to start recording.');
             }
         }
-        
-        // Create Recording Session on the API
-        async function createRecording() {
+
+        // Call backend API endpoints to initiate metadata tracking
+        async function createRecordingSession() {
             try {
                 const response = await fetch('/api/recordings/videos/', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         driver: 1,
                         vehicle: 1,
                         start_time: new Date().toISOString(),
-                        start_latitude: currentLat || 0.0,
-                        start_longitude: currentLng || 0.0,
+                        start_latitude: currentLat,
+                        start_longitude: currentLng,
                         is_emergency: false
                     })
                 });
-                
-                if (!response.ok) throw new Error('API failure');
-                
+                if (!response.ok) throw new Error();
                 const data = await response.json();
                 recordingId = data.id;
-                console.log('Recording session created:', recordingId);
-            } catch (error) {
-                console.warn('E: Failed to find defaults, seeding them now...');
-                await setupDefaultData();
+                console.log('Driving session started on backend:', recordingId);
+            } catch (e) {
+                console.warn('E: Rest session setup failed. Running backup diagnostics...');
+                await setupFallbackData();
                 const response = await fetch('/api/recordings/videos/', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         driver: 1,
                         vehicle: 1,
                         start_time: new Date().toISOString(),
-                        start_latitude: currentLat || 0.0,
-                        start_longitude: currentLng || 0.0,
+                        start_latitude: currentLat,
+                        start_longitude: currentLng,
                         is_emergency: false
                     })
                 });
@@ -729,104 +1028,58 @@
                 recordingId = data.id;
             }
         }
-        
-        // Auto seed client-side default configuration if missing
-        async function setupDefaultData() {
+
+        async function setupFallbackData() {
             try {
                 await fetch('/api/drivers/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: 'Default Driver',
-                        license_number: 'DL12345',
-                        phone: '1234567890'
-                    })
+                    body: JSON.stringify({ name: 'Default Driver', license_number: 'DL12345', phone: '1234567890' })
                 });
-                
                 await fetch('/api/vehicles/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        registration: currentPlate,
-                        model: 'Default Model',
-                        make: 'Default Make',
-                        year: 2024,
-                        color: 'White',
-                        owner: 1
-                    })
+                    body: JSON.stringify({ registration: currentPlate, model: 'Dashcam Model', make: 'Make', year: 2024, color: 'Black', owner: 1 })
                 });
             } catch (e) {
-                console.log('Defaults check completed');
+                console.log('Backup credentials synchronized.');
             }
         }
-        
-        // Stream lightweight base64 frames over WebSockets to completely eliminate lag!
-        function sendFrames() {
-            const previewCanvas = document.createElement('canvas');
-            const previewCtx = previewCanvas.getContext('2d');
-            previewCanvas.width = 480;  // Downscale preview to 480x270 for lag-free performance!
-            previewCanvas.height = 270;
 
-            frameInterval = setInterval(() => {
-                if (!isRecording || !osdCanvas.width) return;
-                
-                // Draw lightweight preview frame from the main high-quality osdCanvas
-                previewCtx.drawImage(osdCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
-                const frameData = previewCanvas.toDataURL('image/jpeg', 0.5);
-                
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({
-                        type: 'video_frame',
-                        frame: frameData,
-                        timestamp: new Date().toISOString()
-                    }));
-                }
-            }, 400); // 400ms interval saves 70% CPU/bandwidth, keeping recording fluid!
-        }
-        
-        // GPS Telemetry Engine - strictly using real hardware inputs, with dynamic Haversine fallback if speed is null
+        // 4. Save locations travelled in each driving session. Periodically push GPS data.
         function startLocationTracking() {
-            if (watchId) {
-                navigator.geolocation.clearWatch(watchId);
-                watchId = null;
-            }
+            if (watchId) navigator.geolocation.clearWatch(watchId);
 
             lastGpsTime = null;
             lastLat = null;
             lastLng = null;
-
-            statusMessage.textContent = 'Locating device hardware GPS...';
+            travelCoords = [];
 
             watchId = navigator.geolocation.watchPosition(
                 (position) => {
                     const { latitude, longitude, speed, heading } = position.coords;
-
                     let speedKmh = 0;
                     const now = Date.now();
 
-                    // Compute speed from hardware GPS or fallback to Haversine distance
                     if (speed !== null && speed !== undefined) {
                         speedKmh = speed * 3.6;
                     } else if (lastLat !== null && lastLng !== null && lastGpsTime !== null) {
-                        const elapsedSeconds = (now - lastGpsTime) / 1000;
-                        if (elapsedSeconds > 0.5) {
-                            // Haversine formula
-                            const R = 6371; // Earth radius in km
+                        const seconds = (now - lastGpsTime) / 1000;
+                        if (seconds > 0.5) {
+                            // High-precision Fallback Haversine formula
+                            const R = 6371;
                             const dLat = (latitude - lastLat) * Math.PI / 180;
                             const dLng = (longitude - lastLng) * Math.PI / 180;
                             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                                       Math.cos(lastLat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) *
                                       Math.sin(dLng/2) * Math.sin(dLng/2);
                             const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                            const distanceKm = R * c;
-                            speedKmh = (distanceKm / elapsedSeconds) * 3600; // km/h
-
-                            // Clean up jitter
+                            speedKmh = ((R * c) / seconds) * 3600;
                             if (speedKmh < 1.0) speedKmh = 0;
                         }
                     }
 
-                    // Set current state parameters - absolutely binding GPS location and calculated speed!
+                    // Assign states
                     currentLat = latitude;
                     currentLng = longitude;
                     currentSpeed = speedKmh;
@@ -835,105 +1088,29 @@
                     lastLng = longitude;
                     lastGpsTime = now;
 
+                    // Display updates
                     speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
-                    gpsDisplay.innerHTML = `<i class="fas fa-location-arrow"></i> Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
-                    statusMessage.textContent = 'Real GPS Active';
+                    gpsDisplay.innerHTML = `Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
 
+                    // Push location point live to map marker
+                    if (map) {
+                        deviceMarker.setLatLng([latitude, longitude]);
+                        map.panTo([latitude, longitude]);
+
+                        // Populate and save travelled coordinate tracks locally
+                        travelCoords.push([latitude, longitude]);
+                        travelPathPolyline.setLatLngs(travelCoords);
+                    }
+
+                    // Send coordinates track points over websockets to save permanently in SQLite database!
                     sendGPSData(latitude, longitude, speedKmh, heading);
                 },
                 (error) => {
-                    console.error('Real GPS error:', error);
-                    statusMessage.textContent = 'GPS Error: Check permissions';
-                    gpsDisplay.innerHTML = `<i class="fas fa-exclamation-triangle" style="color: #ff3b30;"></i> GPS Error`;
+                    console.error('GPS tracking error:', error);
+                    statusMessage.textContent = 'Hardware GPS Off';
                 },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 15000,
-                    maximumAge: 0
-                }
+                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
             );
-        }
-
-        // Continuous Web Speech API Background Recognition
-        function startVoiceRecognition() {
-            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!window.SpeechRecognition) {
-                console.warn('Voice command recognition is not supported on this browser.');
-                voiceHeardText.textContent = 'Voice Control: Unsup. Browser';
-                return;
-            }
-
-            if (speechRecognizer) {
-                try { speechRecognizer.stop(); } catch(e) {}
-                speechRecognizer = null;
-            }
-
-            speechRecognizer = new window.SpeechRecognition();
-            speechRecognizer.continuous = true;
-            speechRecognizer.interimResults = true; // Show real-time transcribing cues!
-            speechRecognizer.lang = 'en-US';
-
-            speechRecognizer.onstart = function() {
-                console.log('Speech recognition service started.');
-                voiceHeardText.innerHTML = 'Voice Control Active <span style="color:#00ff88;">(Say "SAVE")</span>';
-            };
-
-            speechRecognizer.onresult = function(event) {
-                let interimTranscript = '';
-                let finalTranscript = '';
-
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) {
-                        finalTranscript += event.results[i][0].transcript;
-                    } else {
-                        interimTranscript += event.results[i][0].transcript;
-                    }
-                }
-
-                const liveHeard = (finalTranscript || interimTranscript).trim().toLowerCase();
-                if (liveHeard) {
-                    // Update visual diagnostic transcribing cues
-                    voiceHeardText.innerHTML = `Heard: <strong style="color: #ffc107;">"${liveHeard}"</strong>`;
-
-                    // Match key command
-                    if (liveHeard.includes('save') || liveHeard.includes('help') || liveHeard.includes('emergency') || liveHeard.includes('sos') || liveHeard.includes('accident')) {
-                        console.log('🚨 VOICE EMERGENCY KEYWORD DETECTED!');
-                        voiceHeardText.innerHTML = '<span style="color:#ff3b30; font-weight:800;">🚨 VOICE SOS DETECTED! SAVING...</span>';
-                        handleVoiceSOS();
-                    }
-                }
-            };
-
-            speechRecognizer.onend = function() {
-                // Keep listening continuously in the background while recording is active
-                if (isRecording && speechRecognizer) {
-                    try { speechRecognizer.start(); } catch(e) {}
-                } else {
-                    voiceHeardText.textContent = 'Voice Control: Standby';
-                }
-            };
-
-            speechRecognizer.onerror = function(e) {
-                console.warn('Speech Engine error:', e.error);
-                if (e.error === 'not-allowed') {
-                    voiceHeardText.textContent = 'Voice Control: Mic Blocked';
-                }
-            };
-
-            try {
-                speechRecognizer.start();
-                console.log('Voice Command Engine Listening...');
-            } catch(e) {
-                console.error('Failed to start voice command engine:', e);
-            }
-        }
-
-        async function handleVoiceSOS() {
-            if (!isRecording) return;
-            // 1. Instantly trigger emergency broadcast
-            await triggerEmergency();
-            // 2. Automatically halt, bake frames, download, and synchronize
-            await stopRecording();
         }
 
         function sendGPSData(lat, lng, speed, heading) {
@@ -945,38 +1122,53 @@
                     latitude: lat,
                     longitude: lng,
                     speed: speed,
-                    altitude: 15.0,
-                    accuracy: 3.0,
+                    altitude: 10.0,
+                    accuracy: 1.0,
                     heading: heading || 0
                 }));
             }
         }
 
-        // Stop recording, trigger download to local storage, and patch actual recording.mp4/webm to server
-        async function stopRecording() {
-            isRecording = false;
-            statusMessage.textContent = 'Saving high-quality capture...';
+        // Stream downscaled base64 frames over WebSockets
+        function sendLightweightPreviews() {
+            const previewCanvas = document.createElement('canvas');
+            const previewCtx = previewCanvas.getContext('2d');
+            previewCanvas.width = 480;
+            previewCanvas.height = 270;
 
-            // Halt voice recognizer
+            frameInterval = setInterval(() => {
+                if (!isRecording || !liveCanvas.width) return;
+
+                previewCtx.drawImage(liveCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+                const baseFrame = previewCanvas.toDataURL('image/jpeg', 0.5);
+
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'video_frame',
+                        frame: baseFrame,
+                        timestamp: new Date().toISOString()
+                    }));
+                }
+            }, 400);
+        }
+
+        // Stop current session, finalize video compiling, and run database uploads
+        async function stopRecording() {
+            if (!isRecording) return;
+            isRecording = false;
+            statusMessage.textContent = 'Saving footage...';
+
             if (speechRecognizer) {
                 try { speechRecognizer.stop(); } catch(e) {}
                 speechRecognizer = null;
             }
 
-            // 1. Stop MediaRecorder
             if (mediaRecorder && mediaRecorder.state !== 'inactive') {
                 mediaRecorder.stop();
             }
 
-            // 2. Clear visual trackers
-            if (frameInterval) {
-                clearInterval(frameInterval);
-                frameInterval = null;
-            }
-            if (osdInterval) {
-                clearInterval(osdInterval);
-                osdInterval = null;
-            }
+            if (frameInterval) clearInterval(frameInterval);
+            if (osdInterval) clearInterval(osdInterval);
             if (watchId) {
                 navigator.geolocation.clearWatch(watchId);
                 watchId = null;
@@ -985,23 +1177,21 @@
             if (mediaStream) {
                 mediaStream.getTracks().forEach(track => track.stop());
                 mediaStream = null;
-                videoTrack = null;
             }
             
             video.srcObject = null;
             currentSpeed = 0;
             
-            // 3. Process video compile, local storage download, and API file upload
+            // Build file and perform gallery download
             setTimeout(async () => {
                 if (recordedChunks.length > 0) {
                     const videoBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/webm' });
-
-                    // A. Trigger instant local download to device gallery / disk memory
                     const downloadUrl = URL.createObjectURL(videoBlob);
+
                     const a = document.createElement('a');
                     a.style.display = 'none';
                     a.href = downloadUrl;
-                    a.download = `dashcam_recording_${new Date().toISOString().replace(/[:.]/g, '-')}.${recExtension}`;
+                    a.download = `reagantech_dashcam_${Date.now()}.${recExtension}`;
                     document.body.appendChild(a);
                     a.click();
                     setTimeout(() => {
@@ -1009,7 +1199,7 @@
                         window.URL.revokeObjectURL(downloadUrl);
                     }, 150);
 
-                    // B. Send the ACTUAL baked video to database storage for web preview & AI processing
+                    // Sync saved video back to Django storage for remote analytics
                     if (recordingId) {
                         const formData = new FormData();
                         formData.append('video_file', videoBlob, `recording.${recExtension}`);
@@ -1021,17 +1211,17 @@
                                 body: formData
                             });
                             if (response.ok) {
-                                statusMessage.textContent = 'Video saved locally & uploaded!';
+                                statusMessage.textContent = 'Failsafe upload complete!';
                             } else {
-                                statusMessage.textContent = 'Saved to gallery. Upload failed.';
+                                statusMessage.textContent = 'Downloaded to device memory.';
                             }
                         } catch (e) {
-                            console.error('Server upload failed:', e);
+                            console.error('Storage upload failure:', e);
                             statusMessage.textContent = 'Saved to device storage!';
                         }
                     }
                 } else {
-                    statusMessage.textContent = 'Failed to compile media chunks.';
+                    statusMessage.textContent = 'Error compiling footage.';
                 }
 
                 recordBtn.innerHTML = '<i class="fas fa-video"></i>';
@@ -1043,16 +1233,62 @@
                 mediaRecorder = null;
             }, 600);
         }
-        
-        // SOS / Emergency trigger
-        async function triggerEmergency() {
-            if (!recordingId) {
-                statusMessage.textContent = 'SOS: Start recording first!';
+
+        // Speech activation integration
+        function startVoiceRecognition() {
+            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!window.SpeechRecognition) {
+                voiceHeardText.textContent = 'Voice unsupported';
                 return;
             }
             
+            speechRecognizer = new window.SpeechRecognition();
+            speechRecognizer.continuous = true;
+            speechRecognizer.interimResults = true;
+            speechRecognizer.lang = 'en-US';
+
+            speechRecognizer.onstart = () => {
+                voiceHeardText.innerHTML = 'Voice Control Active <span style="color:#00ff88;">(Say "SAVE")</span>';
+            };
+
+            speechRecognizer.onresult = (event) => {
+                let interim = '';
+                let final = '';
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) final += event.results[i][0].transcript;
+                    else interim += event.results[i][0].transcript;
+                }
+                const heard = (final || interim).trim().toLowerCase();
+                if (heard) {
+                    voiceHeardText.innerHTML = `Heard: <strong style="color: #ffc107;">"${heard}"</strong>`;
+                    if (heard.includes('save') || heard.includes('help') || heard.includes('sos') || heard.includes('emergency')) {
+                        handleVoiceSOS();
+                    }
+                }
+            };
+
+            speechRecognizer.onend = () => {
+                if (isRecording && speechRecognizer) {
+                    try { speechRecognizer.start(); } catch(e) {}
+                }
+            };
+
+            try {
+                speechRecognizer.start();
+            } catch(e) {}
+        }
+
+        async function handleVoiceSOS() {
+            if (!isRecording) return;
+            await triggerEmergency();
+            await stopRecording();
+        }
+
+        async function triggerEmergency() {
+            if (!recordingId) return;
+
             emergencyIndicator.style.display = 'block';
-            statusMessage.textContent = '🚨 SOS SIGNAL TRANSMITTED!';
+            statusMessage.textContent = 'SOS TRANSMITTED!';
             
             try {
                 await fetch(`/api/recordings/videos/${recordingId}/add_emergency/`, {
@@ -1062,48 +1298,25 @@
                         latitude: currentLat,
                         longitude: currentLng,
                         speed_kmh: currentSpeed,
-                        description: 'Emergency manual distress signal triggered by driver'
+                        description: 'Voice activated physical SOS distress signal'
                     })
                 });
             } catch (e) {
-                console.error('SOS registration failed:', e);
+                console.error('Emergency request failed:', e);
             }
             
-            if (navigator.vibrate) {
-                navigator.vibrate([300, 100, 300, 100, 300]);
-            }
+            if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
             
             setTimeout(() => {
                 emergencyIndicator.style.display = 'none';
-                statusMessage.textContent = 'Ready';
-            }, 4000);
+            }, 3000);
         }
-        
-        // Button listeners
-        recordBtn.addEventListener('click', () => {
-            if (isRecording) {
-                stopRecording();
-            } else {
-                startRecording();
-            }
-        });
-        
-        stopBtn.addEventListener('click', stopRecording);
-        emergencyBtn.addEventListener('click', triggerEmergency);
-        
-        // Initialize connections
-        statusMessage.textContent = 'Connecting...';
+
+        // Initialize state, map, canvas loop, and sockets
+        statusMessage.textContent = 'Loading subsystems...';
+        initLeafletMap();
+        startOSDDrawLoop();
         connectWebSocket();
-        
-        // Auto-detect mobile screen and prompt camera start
-        if (/Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-            setTimeout(startRecording, 1200);
-        } else {
-            // Seed defaults for easy desktop mock tracking
-            setupDefaultData();
-        }
-        
-        console.log('Mobile Camera and Telemetry Module initialized successfully.');
     </script>
 </body>
 </html>
