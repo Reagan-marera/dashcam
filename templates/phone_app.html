@@ -99,9 +99,15 @@
             border-bottom: 2px solid #222;
         }
 
-        /* Hidden raw video element */
+        /* Overhaul CSS: change display: none to small size with minimal opacity to prevent black screen canvas */
         #video {
-            display: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 1px;
+            height: 1px;
+            opacity: 0.001;
+            pointer-events: none;
         }
 
         /* Aspect-ratio locked canvas: strictly 16:9, completely eliminating any stretching */
@@ -281,9 +287,16 @@
             border-radius: 12px;
             padding: 8px;
             display: flex;
+            flex-direction: column;
             gap: 6px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
             backdrop-filter: blur(10px);
+        }
+
+        .search-row {
+            display: flex;
+            gap: 6px;
+            width: 100%;
         }
 
         .map-search-control input {
@@ -311,6 +324,47 @@
 
         .map-search-control button:active {
             opacity: 0.8;
+        }
+
+        /* Autocomplete Suggestions Box Panel */
+        #autocomplete-dropdown {
+            width: 100%;
+            max-height: 180px;
+            overflow-y: auto;
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            display: none;
+            padding: 4px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+        }
+
+        .suggestion-item {
+            padding: 8px 10px;
+            font-size: 11px;
+            color: #ddd;
+            cursor: pointer;
+            border-radius: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+            text-align: left;
+        }
+
+        .suggestion-item:hover {
+            background: rgba(99, 102, 241, 0.3);
+            color: white;
+        }
+
+        .suggestion-item .dist {
+            font-size: 9px;
+            font-weight: bold;
+            background: rgba(0, 255, 136, 0.15);
+            color: #00ff88;
+            padding: 2px 6px;
+            border-radius: 10px;
+            white-space: nowrap;
         }
 
         /* Circular Speed Limit Indicator overlaid on the Map */
@@ -510,8 +564,12 @@
             <!-- Bottom Half: Full Interactive Map with search and routing capabilities -->
             <div id="map-container">
                 <div class="map-search-control">
-                    <input type="text" id="destination-input" placeholder="Enter destination for directions...">
-                    <button id="directions-btn" onclick="calculateDirections()"><i class="fas fa-route"></i> GO</button>
+                    <div class="search-row">
+                        <input type="text" id="destination-input" placeholder="Enter destination for directions..." oninput="handleSearchInputDebounced(event)">
+                        <button id="directions-btn" onclick="calculateDirections()"><i class="fas fa-route"></i> GO</button>
+                    </div>
+                    <!-- Dropdown autocomplete sugestions panel -->
+                    <div id="autocomplete-dropdown"></div>
                 </div>
 
                 <div id="map"></div>
@@ -583,6 +641,9 @@
         let sweepY = 100;
         let sweepDirection = 2; // pixel speed of scanner line sweeping
 
+        // Search suggestion debounce
+        let searchTimeout = null;
+
         // DOM bindings
         const video = document.getElementById('video');
         const recordBtn = document.getElementById('recordBtn');
@@ -599,6 +660,8 @@
         const voiceHeardText = document.getElementById('voiceHeardText');
         const directionsOverlay = document.getElementById('directions-overlay');
         const speedLimitSign = document.getElementById('speed-limit-sign');
+        const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
+        const destinationInput = document.getElementById('destination-input');
 
         // Setup real-time clock
         function updateTime() {
@@ -636,11 +699,89 @@
             }
         }
 
+        // Debounce input to trigger Nominatim Autocomplete suggestions
+        function handleSearchInputDebounced(event) {
+            const query = event.target.value.trim();
+            if (searchTimeout) clearTimeout(searchTimeout);
+
+            if (!query || query.length < 3) {
+                autocompleteDropdown.style.display = 'none';
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                fetchAutocompleteSuggestions(query);
+            }, 400);
+        }
+
+        // Fetch places from Nominatim & Calculate distances dynamically
+        async function fetchAutocompleteSuggestions(query) {
+            try {
+                // Focus search query around current location for relevant suggestions
+                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${currentLng-0.5},${currentLat+0.5},${currentLng+0.5},${currentLat-0.5}`;
+                const res = await fetch(url, {
+                    headers: { 'Accept-Language': 'en' }
+                });
+                const suggestions = await res.json();
+
+                if (!suggestions || suggestions.length === 0) {
+                    autocompleteDropdown.style.display = 'none';
+                    return;
+                }
+
+                autocompleteDropdown.innerHTML = '';
+                suggestions.forEach(item => {
+                    const lat = parseFloat(item.lat);
+                    const lon = parseFloat(item.lon);
+
+                    // Calculate real-time Haversine distance from current device
+                    const distance = getHaversineDistance(currentLat, currentLng, lat, lon);
+
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+
+                    // Clean name representation
+                    const displayName = item.display_name.split(',').slice(0, 3).join(', ');
+
+                    div.innerHTML = `
+                        <span>${displayName}</span>
+                        <span class="dist">${distance.toFixed(1)} km</span>
+                    `;
+
+                    div.onclick = () => {
+                        destinationInput.value = item.display_name;
+                        autocompleteDropdown.style.display = 'none';
+                        calculateDirections(); // Auto trigger directions calculation!
+                    };
+
+                    autocompleteDropdown.appendChild(div);
+                });
+
+                autocompleteDropdown.style.display = 'block';
+
+            } catch (error) {
+                console.error('Failed to retrieve search suggestions:', error);
+            }
+        }
+
+        // Mathematically calculate raw distance in KM between coordinate pairs
+        function getHaversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
         // Search destination and fetch OSRM Directions
         async function calculateDirections() {
-            const query = document.getElementById('destination-input').value;
+            const query = destinationInput.value;
             if (!query) return;
 
+            autocompleteDropdown.style.display = 'none';
             directionsOverlay.style.display = 'block';
             directionsOverlay.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Geocoding destination...`;
 
