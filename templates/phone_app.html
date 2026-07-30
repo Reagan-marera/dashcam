@@ -606,6 +606,10 @@
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 10;
         
+        // Live YOLO detections from websocket stream
+        let liveYoloDetections = [];
+        let lastDetectionTime = 0;
+
         // Media Recorder state for physical local video baking & uploads
         let mediaRecorder = null;
         let recordedChunks = [];
@@ -877,6 +881,9 @@
                             currentPlate = data.plate.toUpperCase() || 'ABC-1234';
                             localStorage.setItem('dashcam_plate', currentPlate);
                             console.log('Synchronized vehicle plate to:', currentPlate);
+                        } else if (data.type === 'video_frame' && data.detections) {
+                            liveYoloDetections = data.detections;
+                            lastDetectionTime = Date.now();
                         }
                     } catch (e) {
                         console.error('Error handling WebSocket message:', e);
@@ -958,56 +965,79 @@
                     sweepDirection *= -1;
                 }
 
-                // ------------------ Dynamic vehicle scanner bounding boxes & heights lines ------------------
-                // Simulated preceding target box 1
-                const box1_x = 420;
-                const box1_y = 260;
-                const box1_w = 400;
-                const box1_h = 240;
+                // ------------------ Live/Simulated YOLO detections overlay ------------------
+                if (typeof liveYoloDetections !== 'undefined' && liveYoloDetections && liveYoloDetections.length > 0 && (Date.now() - lastDetectionTime < 1500)) {
+                    liveYoloDetections.forEach(det => {
+                        const [x1, y1, x2, y2] = det.bbox;
 
-                // Draw tech corner brackets on the target box to look professional
-                osdCtx.strokeStyle = '#00ff88';
-                osdCtx.lineWidth = 3;
+                        // Scale coordinates from the 480x270 WebSocket frame size to 1280x720 canvas size
+                        const rx1 = x1 * (1280 / 480);
+                        const ry1 = y1 * (720 / 270);
+                        const rx2 = x2 * (1280 / 480);
+                        const ry2 = y2 * (720 / 270);
+                        const rw = rx2 - rx1;
+                        const rh = ry2 - ry1;
 
-                // Top Left
-                osdCtx.beginPath(); osdCtx.moveTo(box1_x, box1_y + 30); osdCtx.lineTo(box1_x, box1_y); osdCtx.lineTo(box1_x + 30, box1_y); osdCtx.stroke();
-                // Top Right
-                osdCtx.beginPath(); osdCtx.moveTo(box1_x + box1_w - 30, box1_y); osdCtx.lineTo(box1_x + box1_w, box1_y); osdCtx.lineTo(box1_x + box1_w, box1_y + 30); osdCtx.stroke();
-                // Bottom Left
-                osdCtx.beginPath(); osdCtx.moveTo(box1_x, box1_y + box1_h - 30); osdCtx.lineTo(box1_x, box1_y + box1_h); osdCtx.lineTo(box1_x + 30, box1_y + box1_h); osdCtx.stroke();
-                // Bottom Right
-                osdCtx.beginPath(); osdCtx.moveTo(box1_x + box1_w - 30, box1_y + box1_h); osdCtx.lineTo(box1_x + box1_w, box1_y + box1_h); osdCtx.lineTo(box1_x + box1_w, box1_y + box1_h - 30); osdCtx.stroke();
+                        let color = '#00ff88'; // Green for vehicles
+                        if (det.class === 'person') color = '#38bdf8'; // Blue
+                        if (det.class === 'traffic light' || det.class === 'stop sign') color = '#ff3b30'; // Red
 
-                // ------------------ Vertical heights lines & tick marks ------------------
-                const tickX = box1_x - 20;
-                osdCtx.strokeStyle = '#38bdf8';
-                osdCtx.lineWidth = 2;
-                osdCtx.beginPath();
-                osdCtx.moveTo(tickX, box1_y);
-                osdCtx.lineTo(tickX, box1_y + box1_h);
-                osdCtx.stroke();
+                        osdCtx.strokeStyle = color;
+                        osdCtx.lineWidth = 3;
+                        osdCtx.strokeRect(rx1, ry1, rw, rh);
 
-                // Draw tick marks every 40px
-                osdCtx.font = '10px Arial, sans-serif';
-                osdCtx.fillStyle = '#38bdf8';
-                for (let hTick = 0; hTick <= box1_h; hTick += 40) {
+                        osdCtx.fillStyle = color;
+                        osdCtx.font = 'bold 14px monospace';
+
+                        let label = `${det.class.toUpperCase()} ${(det.confidence * 100).toFixed(0)}%`;
+                        if (['car', 'truck', 'bus', 'motorcycle'].includes(det.class)) {
+                            const sim_height = (1.4 + (rh * 0.005)).toFixed(1);
+                            label += ` | H: ${sim_height}m`;
+                        }
+
+                        const textWidth = osdCtx.measureText(label).width + 10;
+                        osdCtx.fillRect(rx1, ry1 - 22, textWidth, 22);
+
+                        osdCtx.fillStyle = '#000000';
+                        osdCtx.fillText(label, rx1 + 5, ry1 - 6);
+                    });
+                } else {
+                    // Draw professional camera focus bracket in center of screen
+                    const cx = 1280 / 2;
+                    const cy = 720 / 2;
+                    const bSize = 60;
+
+                    osdCtx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
+                    osdCtx.lineWidth = 2;
+
+                    // Top-Left corner
                     osdCtx.beginPath();
-                    osdCtx.moveTo(tickX - 5, box1_y + hTick);
-                    osdCtx.lineTo(tickX + 5, box1_y + hTick);
+                    osdCtx.moveTo(cx - bSize, cy - bSize + 15);
+                    osdCtx.lineTo(cx - bSize, cy - bSize);
+                    osdCtx.lineTo(cx - bSize + 15, cy - bSize);
                     osdCtx.stroke();
 
-                    const simulatedMeters = ((box1_h - hTick) / 100).toFixed(1);
-                    osdCtx.fillText(`${simulatedMeters}m`, tickX - 35, box1_y + hTick + 3);
-                }
+                    // Top-Right corner
+                    osdCtx.beginPath();
+                    osdCtx.moveTo(cx + bSize, cy - bSize + 15);
+                    osdCtx.lineTo(cx + bSize, cy - bSize);
+                    osdCtx.lineTo(cx + bSize - 15, cy - bSize);
+                    osdCtx.stroke();
 
-                // AI scanning labels
-                osdCtx.fillStyle = '#00ff88';
-                osdCtx.font = 'bold 16px monospace';
-                osdCtx.fillText('AI DETECTED: TRUCK/PRECEEDING', box1_x + 10, box1_y + 25);
-                osdCtx.fillStyle = '#ff9500';
-                osdCtx.fillText(`PLATE: ${currentPlate}`, box1_x + 10, box1_y + 48);
-                osdCtx.fillStyle = '#38bdf8';
-                osdCtx.fillText('HEIGHT CALC: 2.4m', box1_x + 10, box1_y + 71);
+                    // Bottom-Left corner
+                    osdCtx.beginPath();
+                    osdCtx.moveTo(cx - bSize, cy + bSize - 15);
+                    osdCtx.lineTo(cx - bSize, cy + bSize);
+                    osdCtx.lineTo(cx - bSize + 15, cy + bSize);
+                    osdCtx.stroke();
+
+                    // Bottom-Right corner
+                    osdCtx.beginPath();
+                    osdCtx.moveTo(cx + bSize, cy + bSize - 15);
+                    osdCtx.lineTo(cx + bSize, cy + bSize);
+                    osdCtx.lineTo(cx + bSize - 15, cy + bSize);
+                    osdCtx.stroke();
+                }
 
                 // Permanent REAGANTECH watermark logo
                 osdCtx.fillStyle = 'rgba(10, 15, 30, 0.8)';
@@ -1194,62 +1224,74 @@
             lastLng = null;
             travelCoords = [];
 
-            watchId = navigator.geolocation.watchPosition(
-                (position) => {
-                    const { latitude, longitude, speed, heading } = position.coords;
-                    let speedKmh = 0;
-                    const now = Date.now();
+            const options = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
 
-                    if (speed !== null && speed !== undefined) {
-                        speedKmh = speed * 3.6;
-                    } else if (lastLat !== null && lastLng !== null && lastGpsTime !== null) {
-                        const seconds = (now - lastGpsTime) / 1000;
-                        if (seconds > 0.5) {
-                            // High-precision Fallback Haversine formula
-                            const R = 6371;
-                            const dLat = (latitude - lastLat) * Math.PI / 180;
-                            const dLng = (longitude - lastLng) * Math.PI / 180;
-                            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                                      Math.cos(lastLat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) *
-                                      Math.sin(dLng/2) * Math.sin(dLng/2);
-                            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                            speedKmh = ((R * c) / seconds) * 3600;
-                            if (speedKmh < 1.0) speedKmh = 0;
-                        }
+            function successCallback(position) {
+                const { latitude, longitude, speed, heading } = position.coords;
+                let speedKmh = 0;
+                const now = Date.now();
+
+                if (speed !== null && speed !== undefined) {
+                    speedKmh = speed * 3.6;
+                } else if (lastLat !== null && lastLng !== null && lastGpsTime !== null) {
+                    const seconds = (now - lastGpsTime) / 1000;
+                    if (seconds > 0.5) {
+                        // High-precision Fallback Haversine formula
+                        const R = 6371;
+                        const dLat = (latitude - lastLat) * Math.PI / 180;
+                        const dLng = (longitude - lastLng) * Math.PI / 180;
+                        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                                  Math.cos(lastLat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) *
+                                  Math.sin(dLng/2) * Math.sin(dLng/2);
+                        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                        speedKmh = ((R * c) / seconds) * 3600;
+                        if (speedKmh < 1.0) speedKmh = 0;
                     }
+                }
 
-                    // Assign states
-                    currentLat = latitude;
-                    currentLng = longitude;
-                    currentSpeed = speedKmh;
+                // Assign states
+                currentLat = latitude;
+                currentLng = longitude;
+                currentSpeed = speedKmh;
 
-                    lastLat = latitude;
-                    lastLng = longitude;
-                    lastGpsTime = now;
+                lastLat = latitude;
+                lastLng = longitude;
+                lastGpsTime = now;
 
-                    // Display updates
-                    speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
-                    gpsDisplay.innerHTML = `Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
+                // Display updates
+                speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
+                gpsDisplay.innerHTML = `Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
 
-                    // Push location point live to map marker
-                    if (map) {
-                        deviceMarker.setLatLng([latitude, longitude]);
-                        map.panTo([latitude, longitude]);
+                // Push location point live to map marker
+                if (map) {
+                    deviceMarker.setLatLng([latitude, longitude]);
+                    map.panTo([latitude, longitude]);
 
-                        // Populate and save travelled coordinate tracks locally
-                        travelCoords.push([latitude, longitude]);
-                        travelPathPolyline.setLatLngs(travelCoords);
-                    }
+                    // Populate and save travelled coordinate tracks locally
+                    travelCoords.push([latitude, longitude]);
+                    travelPathPolyline.setLatLngs(travelCoords);
+                }
 
-                    // Send coordinates track points over websockets to save permanently in SQLite database!
-                    sendGPSData(latitude, longitude, speedKmh, heading);
-                },
-                (error) => {
-                    console.error('GPS tracking error:', error);
-                    statusMessage.textContent = 'Hardware GPS Off';
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-            );
+                // Send coordinates track points over websockets to save permanently in SQLite database!
+                sendGPSData(latitude, longitude, speedKmh, heading);
+            }
+
+            function errorCallback(error) {
+                console.error('GPS tracking error:', error);
+                statusMessage.textContent = 'Hardware GPS Off';
+
+                // Fallback to low-accuracy IP/WiFi-based location which is extremely fast and robust for desktop/WiFi devices!
+                if (options.enableHighAccuracy) {
+                    console.log("Retrying location tracking with high-accuracy disabled...");
+                    options.enableHighAccuracy = false;
+                    options.timeout = 15000;
+                    watchId = navigator.geolocation.watchPosition(successCallback, (err) => {
+                        console.error("Fallback low-accuracy tracking failed too:", err);
+                    }, options);
+                }
+            }
+
+            watchId = navigator.geolocation.watchPosition(successCallback, errorCallback, options);
         }
 
         function sendGPSData(lat, lng, speed, heading) {

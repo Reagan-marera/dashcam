@@ -40,6 +40,7 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
             
             if message_type == 'video_frame':
                 frame_data = data.get('frame')
+                detections_list = []
                 if frame_data:
                     try:
                         # Decode
@@ -73,6 +74,12 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
                                             cv2.putText(img, label, (int(x1), int(y1) - 10),
                                                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
+                                            detections_list.append({
+                                                'class': class_name,
+                                                'confidence': confidence,
+                                                'bbox': [float(x1), float(y1), float(x2), float(y2)]
+                                            })
+
                             # Re-encode to base64
                             _, buffer = cv2.imencode('.jpg', img)
                             processed_base64 = base64.b64encode(buffer).decode('utf-8')
@@ -85,7 +92,8 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
                     {
                         'type': 'video_frame',
                         'frame': frame_data,
-                        'timestamp': data.get('timestamp')
+                        'timestamp': data.get('timestamp'),
+                        'detections': detections_list
                     }
                 )
             
@@ -141,7 +149,8 @@ class VideoStreamConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             'type': 'video_frame',
             'frame': event['frame'],
-            'timestamp': event['timestamp']
+            'timestamp': event['timestamp'],
+            'detections': event.get('detections', [])
         }))
     
     async def location_update(self, event):
