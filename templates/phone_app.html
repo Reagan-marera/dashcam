@@ -933,8 +933,9 @@
 
         // 2. High-Fidelity OSD Canvas Rendering & Simulation of detected targets (baked directly into recorded stream!)
         function startOSDDrawLoop() {
-            liveCanvas.width = 1280;
-            liveCanvas.height = 720;
+            // Set 1920x1080 (1080p FHD) for high definition, clear videos
+            liveCanvas.width = 1920;
+            liveCanvas.height = 1080;
 
             if (osdInterval) clearInterval(osdInterval);
 
@@ -942,7 +943,30 @@
             osdInterval = setInterval(() => {
                 // Clear background and render raw video if streaming is active, otherwise draw beautiful placeholder grid
                 if (video.videoWidth && video.readyState >= 2) {
-                    osdCtx.drawImage(video, 0, 0, liveCanvas.width, liveCanvas.height);
+                    // Aspect ratio preserving crop-to-fill (cover) calculation
+                    const vWidth = video.videoWidth;
+                    const vHeight = video.videoHeight;
+                    const cWidth = liveCanvas.width;
+                    const cHeight = liveCanvas.height;
+
+                    const videoAspect = vWidth / vHeight;
+                    const canvasAspect = cWidth / cHeight;
+
+                    let drawWidth, drawHeight, drawX, drawY;
+
+                    if (videoAspect > canvasAspect) {
+                        drawHeight = cHeight;
+                        drawWidth = cHeight * videoAspect;
+                        drawX = (cWidth - drawWidth) / 2;
+                        drawY = 0;
+                    } else {
+                        drawWidth = cWidth;
+                        drawHeight = cWidth / videoAspect;
+                        drawX = 0;
+                        drawY = (cHeight - drawHeight) / 2;
+                    }
+
+                    osdCtx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
                 } else {
                     // Draw futuristic dark tech grid when waiting for camera
                     osdCtx.fillStyle = '#111';
@@ -990,11 +1014,11 @@
                     liveYoloDetections.forEach(det => {
                         const [x1, y1, x2, y2] = det.bbox;
 
-                        // Scale coordinates from the 480x270 WebSocket frame size to 1280x720 canvas size
-                        const rx1 = x1 * (1280 / 480);
-                        const ry1 = y1 * (720 / 270);
-                        const rx2 = x2 * (1280 / 480);
-                        const ry2 = y2 * (720 / 270);
+                        // Scale coordinates from the 480x270 WebSocket frame size to 1920x1080 canvas size
+                        const rx1 = x1 * (1920 / 480);
+                        const ry1 = y1 * (1080 / 270);
+                        const rx2 = x2 * (1920 / 480);
+                        const ry2 = y2 * (1080 / 270);
                         const rw = rx2 - rx1;
                         const rh = ry2 - ry1;
 
@@ -1104,8 +1128,8 @@
             try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({
                     video: {
-                        width: { ideal: 1280 },
-                        height: { ideal: 720 },
+                        width: { ideal: 1920, min: 1280 },
+                        height: { ideal: 1080, min: 720 },
                         facingMode: 'environment',
                         frameRate: { ideal: 15 }
                     },
@@ -1153,7 +1177,10 @@
                 }
 
                 console.log(`MediaRecorder utilizing mimeType: ${recordingMimeType}`);
-                mediaRecorder = new MediaRecorder(combinedStream, { mimeType: recordingMimeType });
+                mediaRecorder = new MediaRecorder(combinedStream, {
+                    mimeType: recordingMimeType,
+                    videoBitsPerSecond: 6000000 // 6 Mbps for extremely crisp and clear FHD recording!
+                });
                 mediaRecorder.ondataavailable = function(e) {
                     if (e.data && e.data.size > 0) {
                         recordedChunks.push(e.data);
