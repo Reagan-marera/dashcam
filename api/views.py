@@ -60,7 +60,8 @@ class ProxyRouteView(APIView):
         if not coordinates:
             return Response({'error': 'Coordinates parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
 
-        url = f"https://router.projectosrm.org/route/v1/driving/{coordinates}"
+        # Use OpenStreetMap Germany public routing server as OSRM proxy for full robustness and bypass fingerprint pages
+        url = f"https://routing.openstreetmap.de/routed-car/route/v1/driving/{coordinates}"
         params = {
             'overview': overview,
             'geometries': geometries,
@@ -68,7 +69,8 @@ class ProxyRouteView(APIView):
         }
 
         headers = {
-            'User-Agent': 'ReaganTechDashcam/1.0 (contact@reagantech.com)'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Referer': 'https://www.openstreetmap.org/'
         }
 
         try:
