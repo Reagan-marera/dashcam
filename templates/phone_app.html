@@ -406,21 +406,33 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
-        /* Floating Actions Row in Phone Frame Footer */
+        /* Floating Actions Row in Phone Frame Footer - Centered Floating Capsule */
         #controls-bar {
-            position: relative; /* Changed from absolute to flex flow */
-            margin: 10px 15px 15px 15px;
-            z-index: 1001;
-            background: rgba(0, 0, 0, 0.85);
-            backdrop-filter: blur(15px);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 20px;
-            padding: 10px 15px;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2000; /* Ensure it floats above map and video */
+            background: rgba(10, 15, 30, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 30px;
+            padding: 15px 25px;
             display: flex;
-            justify-content: space-between;
+            justify-content: center;
             align-items: center;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.6);
-            flex-shrink: 0; /* Prevent controls from shrinking */
+            gap: 20px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.9);
+            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        #controls-bar.fade-out {
+            opacity: 0;
+            pointer-events: none;
+            transform: translate(-50%, -40%) scale(0.95);
         }
 
         .control-btn {
@@ -1624,6 +1636,59 @@
 
         // Find and track the actual live location immediately on page load
         startLocationTracking();
+
+        // 5. Controls Auto-Hide & Double Tap Reappear System
+        let controlsTimeout = null;
+        const controlsBar = document.getElementById('controls-bar');
+        const phoneFrame = document.querySelector('.phone-frame');
+
+        function showControls() {
+            if (controlsTimeout) clearTimeout(controlsTimeout);
+            controlsBar.classList.remove('fade-out');
+
+            // Auto hide controls panel after 4 seconds of inactivity
+            controlsTimeout = setTimeout(() => {
+                hideControls();
+            }, 4000);
+        }
+
+        function hideControls() {
+            controlsBar.classList.add('fade-out');
+        }
+
+        // Double tap detection on phone screen
+        let lastTap = 0;
+        phoneFrame.addEventListener('touchend', function(e) {
+            // Only trigger if clicked element is not a button to avoid interference
+            if (e.target.closest('.control-btn') || e.target.closest('.back-link')) {
+                showControls(); // Keep active
+                return;
+            }
+
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTap;
+            if (tapLength < 300 && tapLength > 0) {
+                e.preventDefault();
+                showControls();
+            }
+            lastTap = currentTime;
+        });
+
+        // Support double click for desktop browser testing
+        phoneFrame.addEventListener('dblclick', function(e) {
+            if (e.target.closest('.control-btn') || e.target.closest('.back-link')) {
+                return;
+            }
+            showControls();
+        });
+
+        // Keep controls visible when interacting/clicking with buttons
+        controlsBar.addEventListener('click', function() {
+            showControls();
+        });
+
+        // Trigger initial show so user knows where controls are located
+        showControls();
     </script>
 </body>
 </html>
