@@ -1637,6 +1637,9 @@
         // Find and track the actual live location immediately on page load
         startLocationTracking();
 
+        // Start continuous background voice activation globally on load-time
+        startVoiceRecognition();
+
         // 5. Controls Auto-Hide & Double Tap Reappear System
         let controlsTimeout = null;
         const controlsBar = document.getElementById('controls-bar');
