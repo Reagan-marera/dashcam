@@ -33,7 +33,7 @@
             width: 100%;
             height: 100%;
             max-width: 480px;
-            max-height: 850px;
+            max-height: 95vh; /* Responsive height limit to always fit screen */
             background: #000;
             overflow: hidden;
             box-shadow: 0 10px 40px rgba(0,0,0,0.8);
@@ -82,7 +82,8 @@
             display: flex;
             flex-direction: column;
             width: 100%;
-            height: 100%;
+            flex: 1; /* Take up all available height */
+            min-height: 0; /* Allow inner contents to shrink */
         }
 
         /* Top Half - Camera & processed scan overlays */
@@ -370,7 +371,7 @@
         /* Circular Speed Limit Indicator overlaid on the Map */
         #speed-limit-sign {
             position: absolute;
-            bottom: 120px;
+            bottom: 15px;
             right: 15px;
             z-index: 1000;
             width: 46px;
@@ -390,15 +391,15 @@
         /* Directional driving instructions overlay on map */
         #directions-overlay {
             position: absolute;
-            bottom: 120px;
+            bottom: 15px;
             left: 15px;
             right: 70px;
             z-index: 1000;
-            background: rgba(0,0,0,0.85);
-            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.9);
+            border: 1px solid rgba(255,255,255,0.15);
             border-radius: 10px;
-            padding: 8px 12px;
-            font-size: 11px;
+            padding: 10px 14px;
+            font-size: 12px;
             color: #34d399;
             font-weight: 600;
             display: none;
@@ -407,10 +408,8 @@
 
         /* Floating Actions Row in Phone Frame Footer */
         #controls-bar {
-            position: absolute;
-            bottom: 15px;
-            left: 15px;
-            right: 15px;
+            position: relative; /* Changed from absolute to flex flow */
+            margin: 10px 15px 15px 15px;
             z-index: 1001;
             background: rgba(0, 0, 0, 0.85);
             backdrop-filter: blur(15px);
@@ -421,6 +420,7 @@
             justify-content: space-between;
             align-items: center;
             box-shadow: 0 6px 20px rgba(0,0,0,0.6);
+            flex-shrink: 0; /* Prevent controls from shrinking */
         }
 
         .control-btn {
@@ -630,6 +630,10 @@
         let travelPathPolyline = null;
         let travelCoords = [];
 
+        // Navigation states
+        let routeSteps = [];
+        let currentStepIndex = 0;
+
         // OSD Telemetry Canvas & Scanning Overlays
         const liveCanvas = document.getElementById('live-canvas');
         const osdCtx = liveCanvas.getContext('2d');
@@ -814,9 +818,17 @@
                     return;
                 }
 
-                const routeGeo = osrmData.routes[0].geometry;
-                const distance = (osrmData.routes[0].distance / 1000).toFixed(1);
-                const duration = (osrmData.routes[0].duration / 60).toFixed(0);
+                const route = osrmData.routes[0];
+                const routeGeo = route.geometry;
+                const distance = (route.distance / 1000).toFixed(1);
+                const duration = (route.duration / 60).toFixed(0);
+
+                // Extract route navigation steps for Google Maps style instructions
+                routeSteps = [];
+                currentStepIndex = 0;
+                if (route.legs && route.legs[0] && route.legs[0].steps) {
+                    routeSteps = route.legs[0].steps;
+                }
 
                 // Dynamic speed limits generation based on route distance
                 let dynamicLimit = 50;
@@ -851,7 +863,15 @@
                 L.marker([destLat, destLng], { icon: destIcon }).addTo(map)
                     .bindPopup(`<b>${displayName}</b><br>${distance} km away`).openPopup();
 
-                directionsOverlay.innerHTML = `<i class="fas fa-directions"></i> Drive to <strong>${displayName}</strong>: ${distance} km (${duration} mins)`;
+                // Set first instruction instantly
+                if (routeSteps.length > 0) {
+                    const firstStep = routeSteps[0];
+                    const iconClass = getDirectionIcon(firstStep.maneuver.modifier);
+                    const instructionText = getReadableInstruction(firstStep);
+                    directionsOverlay.innerHTML = `<i class="fas ${iconClass}" style="color: #6366f1; margin-right: 8px; font-size: 14px;"></i> ${instructionText}`;
+                } else {
+                    directionsOverlay.innerHTML = `<i class="fas fa-directions"></i> Drive to <strong>${displayName}</strong>: ${distance} km (${duration} mins)`;
+                }
 
             } catch (e) {
                 console.error('Directions routing engine exception:', e);
@@ -1272,8 +1292,74 @@
                     travelPathPolyline.setLatLngs(travelCoords);
                 }
 
+                // If navigation route is active, update the dynamic Google-Map-style navigation instructions
+                if (typeof routeSteps !== 'undefined' && routeSteps && routeSteps.length > 0) {
+                    const nextStep = routeSteps[currentStepIndex];
+                    if (nextStep && nextStep.maneuver && nextStep.maneuver.location) {
+                        const stepLon = nextStep.maneuver.location[0];
+                        const stepLat = nextStep.maneuver.location[1];
+                        const distToStep = getHaversineDistance(latitude, longitude, stepLat, stepLon) * 1000; // in meters
+
+                        if (distToStep < 40 && currentStepIndex < routeSteps.length - 1) {
+                            currentStepIndex++;
+                            console.log("Navigation advanced to step:", currentStepIndex);
+                        }
+                    }
+
+                    const activeStep = routeSteps[currentStepIndex];
+                    if (activeStep) {
+                        const iconClass = getDirectionIcon(activeStep.maneuver.modifier);
+                        const instructionText = getReadableInstruction(activeStep);
+                        directionsOverlay.innerHTML = `<i class="fas ${iconClass}" style="color: #6366f1; margin-right: 8px; font-size: 14px;"></i> ${instructionText}`;
+                    }
+                }
+
                 // Send coordinates track points over websockets to save permanently in SQLite database!
                 sendGPSData(latitude, longitude, speedKmh, heading);
+            }
+
+            // Helper to generate Google Map style turn instructions from OSRM step
+            function getReadableInstruction(step) {
+                if (!step || !step.maneuver) return "Proceed straight";
+
+                const type = step.maneuver.type;
+                const modifier = step.maneuver.modifier;
+                const name = step.name || "unnamed road";
+                const dist = step.distance;
+
+                let actionStr = "";
+                if (type === "depart") {
+                    actionStr = `Head ${modifier || "ahead"}`;
+                } else if (type === "arrive") {
+                    return `Arrive at destination on ${name}`;
+                } else if (type === "turn") {
+                    actionStr = `Turn ${modifier || "ahead"}`;
+                } else if (type === "new name") {
+                    actionStr = "Continue";
+                } else {
+                    actionStr = `${type} ${modifier || ""}`.trim();
+                }
+
+                actionStr = actionStr.charAt(0).toUpperCase() + actionStr.slice(1);
+
+                if (dist > 0) {
+                    return `In ${dist.toFixed(0)}m, ${actionStr.toLowerCase()} onto <strong>${name}</strong>`;
+                } else {
+                    return `${actionStr} onto <strong>${name}</strong>`;
+                }
+            }
+
+            // Helper to map OSRM maneuver modifiers to FA icons
+            function getDirectionIcon(modifier) {
+                if (!modifier) return "fa-arrow-up";
+                const mod = modifier.toLowerCase();
+                if (mod.includes("left")) return "fa-arrow-left";
+                if (mod.includes("right")) return "fa-arrow-right";
+                if (mod.includes("sharp left")) return "fa-reply";
+                if (mod.includes("sharp right")) return "fa-share";
+                if (mod.includes("slight left")) return "fa-location-arrow";
+                if (mod.includes("slight right")) return "fa-location-arrow";
+                return "fa-arrow-up";
             }
 
             function errorCallback(error) {
