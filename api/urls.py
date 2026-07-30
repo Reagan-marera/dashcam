@@ -8,7 +8,11 @@ router.register(r'drivers', DriverViewSet)
 router.register(r'vehicles', VehicleViewSet)
 router.register(r'videos', RecordingViewSet)
 
+from .views import ProxyGeocodeView, ProxyRouteView
+
 urlpatterns = [
+    path('proxy/geocode/', ProxyGeocodeView.as_view(), name='proxy_geocode'),
+    path('proxy/route/', ProxyRouteView.as_view(), name='proxy_route'),
     path('', include(router.urls)),
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),

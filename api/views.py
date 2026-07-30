@@ -15,6 +15,69 @@ from .serializers import (
     RecordingCreateSerializer, GPSPointSerializer, EmergencyEventSerializer
 )
 
+import requests
+from rest_framework.views import APIView
+
+class ProxyGeocodeView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        q = request.query_params.get('q', '')
+        limit = request.query_params.get('limit', '5')
+        viewbox = request.query_params.get('viewbox', '')
+        format = request.query_params.get('format', 'json')
+
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            'q': q,
+            'limit': limit,
+            'format': format,
+        }
+        if viewbox:
+            params['viewbox'] = viewbox
+
+        headers = {
+            'User-Agent': 'ReaganTechDashcam/1.0 (contact@reagantech.com)',
+            'Accept-Language': 'en'
+        }
+
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            return Response(response.json(), status=response.status_code)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ProxyRouteView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        coordinates = request.query_params.get('coordinates', '')
+        overview = request.query_params.get('overview', 'full')
+        geometries = request.query_params.get('geometries', 'geojson')
+        steps = request.query_params.get('steps', 'true')
+
+        if not coordinates:
+            return Response({'error': 'Coordinates parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        url = f"https://router.projectosrm.org/route/v1/driving/{coordinates}"
+        params = {
+            'overview': overview,
+            'geometries': geometries,
+            'steps': steps
+        }
+
+        headers = {
+            'User-Agent': 'ReaganTechDashcam/1.0 (contact@reagantech.com)'
+        }
+
+        try:
+            response = requests.get(url, params=params, headers=headers, timeout=10)
+            return Response(response.json(), status=response.status_code)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 class DriverViewSet(viewsets.ModelViewSet):
     queryset = Driver.objects.all()
     serializer_class = DriverSerializer
