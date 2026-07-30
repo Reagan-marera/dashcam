@@ -627,6 +627,7 @@
         let map = null;
         let deviceMarker = null;
         let routePolyline = null;
+        let routePolylineBackground = null;
         let travelPathPolyline = null;
         let travelCoords = [];
 
@@ -836,18 +837,27 @@
                 if (distance > 30) dynamicLimit = 110;
                 speedLimitSign.textContent = dynamicLimit;
 
-                // Draw route on map
+                // Draw route on map (Google Maps style dual-polyline solid line representation)
+                if (routePolylineBackground) {
+                    map.removeLayer(routePolylineBackground);
+                }
                 if (routePolyline) {
                     map.removeLayer(routePolyline);
                 }
 
                 // Leaflet expects [lat, lng] instead of [lng, lat] GeoJSON default order
                 const latLngs = routeGeo.coordinates.map(coord => [coord[1], coord[0]]);
+
+                routePolylineBackground = L.polyline(latLngs, {
+                    color: '#1d4ed8', // Thicker dark blue border
+                    weight: 10,
+                    opacity: 0.8
+                }).addTo(map);
+
                 routePolyline = L.polyline(latLngs, {
-                    color: '#6366f1',
+                    color: '#3b82f6', // Bright solid blue route road
                     weight: 6,
-                    opacity: 0.9,
-                    dashArray: '5, 10'
+                    opacity: 1.0
                 }).addTo(map);
 
                 // Fit bounds
@@ -1345,50 +1355,6 @@
                 sendGPSData(latitude, longitude, speedKmh, heading);
             }
 
-            // Helper to generate Google Map style turn instructions from OSRM step
-            function getReadableInstruction(step) {
-                if (!step || !step.maneuver) return "Proceed straight";
-
-                const type = step.maneuver.type;
-                const modifier = step.maneuver.modifier;
-                const name = step.name || "unnamed road";
-                const dist = step.distance;
-
-                let actionStr = "";
-                if (type === "depart") {
-                    actionStr = `Head ${modifier || "ahead"}`;
-                } else if (type === "arrive") {
-                    return `Arrive at destination on ${name}`;
-                } else if (type === "turn") {
-                    actionStr = `Turn ${modifier || "ahead"}`;
-                } else if (type === "new name") {
-                    actionStr = "Continue";
-                } else {
-                    actionStr = `${type} ${modifier || ""}`.trim();
-                }
-
-                actionStr = actionStr.charAt(0).toUpperCase() + actionStr.slice(1);
-
-                if (dist > 0) {
-                    return `In ${dist.toFixed(0)}m, ${actionStr.toLowerCase()} onto <strong>${name}</strong>`;
-                } else {
-                    return `${actionStr} onto <strong>${name}</strong>`;
-                }
-            }
-
-            // Helper to map OSRM maneuver modifiers to FA icons
-            function getDirectionIcon(modifier) {
-                if (!modifier) return "fa-arrow-up";
-                const mod = modifier.toLowerCase();
-                if (mod.includes("left")) return "fa-arrow-left";
-                if (mod.includes("right")) return "fa-arrow-right";
-                if (mod.includes("sharp left")) return "fa-reply";
-                if (mod.includes("sharp right")) return "fa-share";
-                if (mod.includes("slight left")) return "fa-location-arrow";
-                if (mod.includes("slight right")) return "fa-location-arrow";
-                return "fa-arrow-up";
-            }
-
             function errorCallback(error) {
                 console.error('GPS tracking error:', error);
                 statusMessage.textContent = 'Hardware GPS Off';
@@ -1405,6 +1371,50 @@
             }
 
             watchId = navigator.geolocation.watchPosition(successCallback, errorCallback, options);
+        }
+
+        // Helper to generate Google Map style turn instructions from OSRM step (Global Scope)
+        function getReadableInstruction(step) {
+            if (!step || !step.maneuver) return "Proceed straight";
+
+            const type = step.maneuver.type;
+            const modifier = step.maneuver.modifier;
+            const name = step.name || "unnamed road";
+            const dist = step.distance;
+
+            let actionStr = "";
+            if (type === "depart") {
+                actionStr = `Head ${modifier || "ahead"}`;
+            } else if (type === "arrive") {
+                return `Arrive at destination on ${name}`;
+            } else if (type === "turn") {
+                actionStr = `Turn ${modifier || "ahead"}`;
+            } else if (type === "new name") {
+                actionStr = "Continue";
+            } else {
+                actionStr = `${type} ${modifier || ""}`.trim();
+            }
+
+            actionStr = actionStr.charAt(0).toUpperCase() + actionStr.slice(1);
+
+            if (dist > 0) {
+                return `In ${dist.toFixed(0)}m, ${actionStr.toLowerCase()} onto <strong>${name}</strong>`;
+            } else {
+                return `${actionStr} onto <strong>${name}</strong>`;
+            }
+        }
+
+        // Helper to map OSRM maneuver modifiers to FA icons (Global Scope)
+        function getDirectionIcon(modifier) {
+            if (!modifier) return "fa-arrow-up";
+            const mod = modifier.toLowerCase();
+            if (mod.includes("left")) return "fa-arrow-left";
+            if (mod.includes("right")) return "fa-arrow-right";
+            if (mod.includes("sharp left")) return "fa-reply";
+            if (mod.includes("sharp right")) return "fa-share";
+            if (mod.includes("slight left")) return "fa-location-arrow";
+            if (mod.includes("slight right")) return "fa-location-arrow";
+            return "fa-arrow-up";
         }
 
         function sendGPSData(lat, lng, speed, heading) {
