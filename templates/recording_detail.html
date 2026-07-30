@@ -96,12 +96,13 @@
     <div class="detail-grid">
         <div class="card">
             <h3 style="color: #fff; margin-bottom: 15px;"><i class="far fa-play-circle" style="color: #667eea;"></i> Playback</h3>
-            <div class="video-container">
-                <video id="videoPlayer" controls>
+            <div class="video-container" style="position: relative;">
+                <video id="videoPlayer" controls style="width: 100%; display: block;">
                     <source src="" type="video/webm">
                     <source src="" type="video/mp4">
                     Your browser does not support the video tag.
                 </video>
+                <canvas id="detectionCanvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
             </div>
 
             <!-- Manual File Upload Box -->
@@ -166,6 +167,12 @@
         </div>
     </div>
 
+    <!-- Route Travelled Map -->
+    <div class="card" style="margin-top: 20px;">
+        <h3 style="color: #fff; margin-bottom: 15px;"><i class="fas fa-map-marked-alt" style="color: #667eea;"></i> Route Travelled</h3>
+        <div id="map" style="width: 100%; height: 350px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 1;"></div>
+    </div>
+
     <div class="card" style="margin-top: 20px;">
         <h3 style="color: #fff; margin-bottom: 15px;"><i class="fas fa-robot" style="color: #667eea;"></i> AI Detections</h3>
         <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
@@ -185,6 +192,147 @@
 <script>
     let recordingId = window.location.pathname.split('/').filter(Boolean).pop();
 
+    // Leaflet map and canvas overlay state
+    let map = null;
+    let pathPolyline = null;
+    let startMarker = null;
+    let endMarker = null;
+
+    const video = document.getElementById('videoPlayer');
+    const detCanvas = document.getElementById('detectionCanvas');
+    const detCtx = detCanvas.getContext('2d');
+    let allDetections = [];
+
+    function resizeDetectionCanvas() {
+        detCanvas.width = video.videoWidth || 1280;
+        detCanvas.height = video.videoHeight || 720;
+    }
+
+    video.addEventListener('loadedmetadata', resizeDetectionCanvas);
+    window.addEventListener('resize', resizeDetectionCanvas);
+
+    function drawDetections() {
+        if (!allDetections || allDetections.length === 0) return;
+
+        detCtx.clearRect(0, 0, detCanvas.width, detCanvas.height);
+
+        if (detCanvas.width !== video.videoWidth || detCanvas.height !== video.videoHeight) {
+            resizeDetectionCanvas();
+        }
+
+        const fps = 15;
+        const currentFrame = Math.floor(video.currentTime * fps);
+        const detectionFrame = Math.floor(currentFrame / 15) * 15;
+
+        const frameDets = allDetections.filter(d => d.frame === detectionFrame);
+
+        if (frameDets.length > 0) {
+            const originalWidth = video.videoWidth || 1280;
+            const originalHeight = video.videoHeight || 720;
+            const scale = 640 / originalWidth;
+            const modelHeight = originalHeight * scale;
+
+            const finalScaleX = detCanvas.width / 640;
+            const finalScaleY = detCanvas.height / modelHeight;
+
+            frameDets.forEach(det => {
+                const [x1, y1, x2, y2] = det.bbox;
+                const rx1 = x1 * finalScaleX;
+                const ry1 = y1 * finalScaleY;
+                const rx2 = x2 * finalScaleX;
+                const ry2 = y2 * finalScaleY;
+                const rw = rx2 - rx1;
+                const rh = ry2 - ry1;
+
+                let color = '#34c759';
+                if (det.class === 'person') color = '#007bff';
+                if (det.class === 'truck' || det.class === 'bus') color = '#dc3545';
+                if (det.class === 'motorcycle') color = '#ffc107';
+
+                detCtx.strokeStyle = color;
+                detCtx.lineWidth = 3;
+                detCtx.strokeRect(rx1, ry1, rw, rh);
+
+                detCtx.fillStyle = color;
+                detCtx.font = 'bold 14px Arial, sans-serif';
+                const labelText = `${det.class.toUpperCase()} (${(det.confidence * 100).toFixed(0)}%)`;
+                const labelWidth = detCtx.measureText(labelText).width + 10;
+                detCtx.fillRect(rx1, ry1 - 22, labelWidth, 22);
+
+                detCtx.fillStyle = '#ffffff';
+                detCtx.fillText(labelText, rx1 + 5, ry1 - 6);
+
+                if (det.license_plate) {
+                    const plateText = `🔢 PLATE: ${det.license_plate}`;
+                    const plateWidth = detCtx.measureText(plateText).width + 10;
+                    detCtx.fillStyle = '#ffffff';
+                    detCtx.fillRect(rx1, ry1 + rh, plateWidth, 22);
+                    detCtx.fillStyle = '#000000';
+                    detCtx.font = 'bold 12px Arial, sans-serif';
+                    detCtx.fillText(plateText, rx1 + 5, ry1 + rh + 16);
+                }
+            });
+        }
+    }
+
+    video.addEventListener('timeupdate', drawDetections);
+    video.addEventListener('play', () => {
+        function tick() {
+            if (!video.paused && !video.ended) {
+                drawDetections();
+                requestAnimationFrame(tick);
+            }
+        }
+        requestAnimationFrame(tick);
+    });
+
+    function initMap(gpsPoints) {
+        if (!map) {
+            map = L.map('map', { zoomControl: false }).setView([0, 0], 2);
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap, © CartoDB'
+            }).addTo(map);
+            L.control.zoom({ position: 'bottomright' }).addTo(map);
+        }
+
+        if (gpsPoints && gpsPoints.length > 0) {
+            const coords = gpsPoints.map(p => [parseFloat(p.latitude), parseFloat(p.longitude)]);
+
+            if (pathPolyline) map.removeLayer(pathPolyline);
+            if (startMarker) map.removeLayer(startMarker);
+            if (endMarker) map.removeLayer(endMarker);
+
+            pathPolyline = L.polyline(coords, {
+                color: '#10b981',
+                weight: 5,
+                opacity: 0.9,
+                smoothFactor: 1
+            }).addTo(map);
+
+            const startIcon = L.divIcon({
+                className: 'start-icon',
+                html: '<div style="background: #34d399; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px #34d399;"></div>',
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+            startMarker = L.marker(coords[0], { icon: startIcon }).addTo(map)
+                .bindPopup('<b>Start Location</b>');
+
+            const endIcon = L.divIcon({
+                className: 'end-icon',
+                html: '<div style="background: #ef4444; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px #ef4444;"></div>',
+                iconSize: [12, 12],
+                iconAnchor: [6, 6]
+            });
+            endMarker = L.marker(coords[coords.length - 1], { icon: endIcon }).addTo(map)
+                .bindPopup('<b>End Location</b>');
+
+            map.fitBounds(pathPolyline.getBounds(), { padding: [30, 30] });
+        } else {
+            map.setView([-1.286389, 36.817223], 13);
+        }
+    }
+
     // Load recording details
     async function loadRecording() {
         try {
@@ -192,15 +340,14 @@
             const data = await response.json();
             
             // Video
-            const video = document.getElementById('videoPlayer');
             const uploadBox = document.getElementById('uploadBox');
 
             if (data.video_file) {
                 video.src = data.video_file;
-                video.load(); // Explicitly invoke video load so it decodes instantly
-                uploadBox.style.display = 'block'; // Show so they can manually replace if they want
+                video.load();
+                uploadBox.style.display = 'block';
             } else {
-                uploadBox.style.display = 'block'; // Show upload block so they can add the file
+                uploadBox.style.display = 'block';
             }
             
             // Info
@@ -226,12 +373,17 @@
                 `${parseFloat(data.start_latitude).toFixed(6)}, ${parseFloat(data.start_longitude).toFixed(6)}` : '--';
             document.getElementById('gpsCount').textContent = data.gps_points ? data.gps_points.length : '0';
             
+            // Initialize Leaflet Map with synced locations
+            initMap(data.gps_points);
+
             // Detections
             if (data.detections && data.detections.detections) {
+                allDetections = data.detections.detections;
                 displayDetections(data.detections);
                 document.getElementById('aiStatus').textContent = '✅ Processed';
                 document.getElementById('aiStatus').style.color = '#34c759';
             } else {
+                allDetections = [];
                 document.getElementById('aiStatus').textContent = 'Not processed';
                 document.getElementById('aiStatus').style.color = '#ff9500';
             }

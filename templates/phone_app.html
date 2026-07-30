@@ -718,10 +718,8 @@
         async function fetchAutocompleteSuggestions(query) {
             try {
                 // Focus search query around current location for relevant suggestions
-                const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&viewbox=${currentLng-0.5},${currentLat+0.5},${currentLng+0.5},${currentLat-0.5}`;
-                const res = await fetch(url, {
-                    headers: { 'Accept-Language': 'en' }
-                });
+                const url = `/api/proxy/geocode/?q=${encodeURIComponent(query)}&limit=5&viewbox=${currentLng-0.5},${currentLat+0.5},${currentLng+0.5},${currentLat-0.5}`;
+                const res = await fetch(url);
                 const suggestions = await res.json();
 
                 if (!suggestions || suggestions.length === 0) {
@@ -786,8 +784,8 @@
             directionsOverlay.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Geocoding destination...`;
 
             try {
-                // Fetch destination coordinates from OpenStreetMap Nominatim
-                const geoUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+                // Fetch destination coordinates from OpenStreetMap Nominatim proxy
+                const geoUrl = `/api/proxy/geocode/?q=${encodeURIComponent(query)}&limit=1`;
                 const geoRes = await fetch(geoUrl);
                 const geoData = await geoRes.json();
 
@@ -802,8 +800,8 @@
 
                 directionsOverlay.innerHTML = `<i class="fas fa-compass fa-spin"></i> Fetching directions...`;
 
-                // Fetch route geometry from OSRM driving profile routing API
-                const osrmUrl = `https://router.projectosrm.org/route/v1/driving/${currentLng},${currentLat};${destLng},${destLat}?overview=full&geometries=geojson&steps=true`;
+                // Fetch route geometry from OSRM driving profile routing API proxy
+                const osrmUrl = `/api/proxy/route/?coordinates=${currentLng},${currentLat};${destLng},${destLat}&overview=full&geometries=geojson&steps=true`;
                 const osrmRes = await fetch(osrmUrl);
                 const osrmData = await osrmRes.json();
 
