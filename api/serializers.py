@@ -53,9 +53,49 @@ class RecordingSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'date', 'created_at']
 
 class RecordingCreateSerializer(serializers.ModelSerializer):
+    vehicle_registration = serializers.CharField(write_only=True, required=False)
+    vehicle = serializers.PrimaryKeyRelatedField(queryset=Vehicle.objects.all(), required=False, allow_null=True)
+
     class Meta:
         model = Recording
         fields = [
-            'driver', 'vehicle', 'start_time', 'start_latitude',
+            'driver', 'vehicle', 'vehicle_registration', 'start_time', 'start_latitude',
             'start_longitude', 'is_emergency'
         ]
+
+    def create(self, validated_data):
+        vehicle_reg = validated_data.pop('vehicle_registration', None)
+        driver = validated_data.get('driver')
+
+        if vehicle_reg:
+            vehicle_reg_clean = vehicle_reg.upper().strip()
+            # Look up or create the vehicle under this driver
+            vehicle, _ = Vehicle.objects.get_or_create(
+                registration=vehicle_reg_clean,
+                defaults={
+                    'owner': driver,
+                    'make': 'Universal',
+                    'model': 'Dashcam Vehicle',
+                    'year': 2024,
+                    'color': 'Black',
+                    'vehicle_type': 'car'
+                }
+            )
+            validated_data['vehicle'] = vehicle
+        elif not validated_data.get('vehicle'):
+            # Fallback to default vehicle 1 or create one
+            vehicle, _ = Vehicle.objects.get_or_create(
+                id=1,
+                defaults={
+                    'registration': 'ABC-1234',
+                    'owner': driver,
+                    'make': 'Universal',
+                    'model': 'Dashcam Vehicle',
+                    'year': 2024,
+                    'color': 'Black',
+                    'vehicle_type': 'car'
+                }
+            )
+            validated_data['vehicle'] = vehicle
+
+        return super().create(validated_data)

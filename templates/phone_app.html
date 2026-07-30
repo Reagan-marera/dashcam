@@ -1137,7 +1137,7 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         driver: 1,
-                        vehicle: 1,
+                        vehicle_registration: currentPlate,
                         start_time: new Date().toISOString(),
                         start_latitude: currentLat,
                         start_longitude: currentLng,
@@ -1456,6 +1456,9 @@
         initLeafletMap();
         startOSDDrawLoop();
         connectWebSocket();
+
+        // Find and track the actual live location immediately on page load
+        startLocationTracking();
     </script>
 </body>
 </html>
