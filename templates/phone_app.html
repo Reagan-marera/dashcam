@@ -33,7 +33,7 @@
             width: 100%;
             height: 100%;
             max-width: 480px;
-            max-height: 95vh; /* Responsive height limit to always fit screen */
+            max-height: 95vh;
             background: #000;
             overflow: hidden;
             box-shadow: 0 10px 40px rgba(0,0,0,0.8);
@@ -43,7 +43,6 @@
             flex-direction: column;
         }
 
-        /* Responsive full-screen adaptation for actual mobile viewports */
         @media (max-width: 500px) {
             .phone-frame {
                 max-width: 100%;
@@ -53,7 +52,6 @@
             }
         }
 
-        /* Top Notch Speaker Indicator */
         .phone-notch {
             position: absolute;
             top: 0;
@@ -77,16 +75,14 @@
             border-radius: 2px;
         }
 
-        /* Split View Layout: Top Half (Camera/Canvas), Bottom Half (Map) */
         .split-container {
             display: flex;
             flex-direction: column;
             width: 100%;
-            flex: 1; /* Take up all available height */
-            min-height: 0; /* Allow inner contents to shrink */
+            flex: 1;
+            min-height: 0;
         }
 
-        /* Top Half - Camera & processed scan overlays */
         #video-container {
             position: relative;
             flex: 1;
@@ -100,7 +96,6 @@
             border-bottom: 2px solid #222;
         }
 
-        /* Overhaul CSS: change display: none to small size with minimal opacity to prevent black screen canvas */
         #video {
             position: absolute;
             top: 0;
@@ -111,7 +106,6 @@
             pointer-events: none;
         }
 
-        /* Aspect-ratio locked canvas: strictly 16:9, completely eliminating any stretching */
         #live-canvas {
             width: 100%;
             height: 100%;
@@ -120,7 +114,6 @@
             aspect-ratio: 16/9;
         }
 
-        /* HUD overlays over the Video Stream */
         #overlay {
             position: absolute;
             top: 0;
@@ -135,7 +128,6 @@
             z-index: 5;
         }
 
-        /* Header HUD Bar */
         .app-status-bar {
             display: flex;
             justify-content: space-between;
@@ -199,7 +191,6 @@
             border: 1px solid rgba(255,255,255,0.1);
         }
 
-        /* Floating Voice control status banner */
         #voice-indicator {
             position: absolute;
             top: 105px;
@@ -227,7 +218,6 @@
             color: #818cf8;
         }
 
-        /* Speed display overlaid on canvas bottom-right */
         #speed-overlay-box {
             position: absolute;
             bottom: 15px;
@@ -262,7 +252,6 @@
             line-height: 1.3;
         }
 
-        /* Bottom Half - Interactive Leaflet Map */
         #map-container {
             position: relative;
             flex: 1;
@@ -276,7 +265,6 @@
             height: 100%;
         }
 
-        /* Interactive Map Input Box and controls */
         .map-search-control {
             position: absolute;
             top: 10px;
@@ -327,7 +315,6 @@
             opacity: 0.8;
         }
 
-        /* Autocomplete Suggestions Box Panel */
         #autocomplete-dropdown {
             width: 100%;
             max-height: 180px;
@@ -368,7 +355,6 @@
             white-space: nowrap;
         }
 
-        /* Circular Speed Limit Indicator overlaid on the Map */
         #speed-limit-sign {
             position: absolute;
             bottom: 15px;
@@ -388,7 +374,6 @@
             box-shadow: 0 3px 10px rgba(0,0,0,0.5);
         }
 
-        /* Directional driving instructions overlay on map */
         #directions-overlay {
             position: absolute;
             bottom: 15px;
@@ -406,13 +391,46 @@
             box-shadow: 0 4px 12px rgba(0,0,0,0.5);
         }
 
-        /* Floating Actions Row in Phone Frame Footer - Centered Floating Capsule */
+        /* North Lock Toggle Button - replaces compass */
+        #north-lock-btn {
+            position: absolute;
+            top: 75px;
+            right: 12px;
+            z-index: 1000;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(20, 25, 40, 0.9);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            pointer-events: auto;
+        }
+
+        #north-lock-btn.active {
+            background: #3b82f6;
+            border-color: #93bbfc;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+        }
+
+        #north-lock-btn:active {
+            transform: scale(0.85);
+        }
+
         #controls-bar {
             position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            z-index: 2000; /* Ensure it floats above map and video */
+            z-index: 2000;
             background: rgba(10, 15, 30, 0.95);
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
@@ -535,12 +553,9 @@
         <div class="phone-notch"></div>
         
         <div class="split-container">
-            <!-- Top Half: Camera Stream View (Unstretched 16:9 processed output) -->
+            <!-- Top Half: Camera Stream View -->
             <div id="video-container">
-                <!-- Hidden raw hardware video track -->
                 <video id="video" autoplay playsinline muted></video>
-
-                <!-- Live high-fidelity rendering Canvas -->
                 <canvas id="live-canvas"></canvas>
 
                 <div id="overlay">
@@ -573,30 +588,31 @@
                 <div id="emergency-indicator">🚨 EMERGENCY SOS</div>
             </div>
             
-            <!-- Bottom Half: Full Interactive Map with search and routing capabilities -->
+            <!-- Bottom Half: Full Interactive Map -->
             <div id="map-container">
                 <div class="map-search-control">
                     <div class="search-row">
                         <input type="text" id="destination-input" placeholder="Enter destination for directions..." oninput="handleSearchInputDebounced(event)">
                         <button id="directions-btn" onclick="calculateDirections()"><i class="fas fa-route"></i> GO</button>
                     </div>
-                    <!-- Dropdown autocomplete sugestions panel -->
                     <div id="autocomplete-dropdown"></div>
                 </div>
 
                 <div id="map"></div>
 
-                <!-- speed limit overlay on map -->
-                <div id="speed-limit-sign">60</div>
+                <!-- North Lock Toggle Button -->
+                <button id="north-lock-btn" onclick="toggleNorthLock()" title="Toggle North Lock">
+                    <i class="fas fa-location-arrow"></i>
+                </button>
 
-                <!-- step by step routing directions text -->
+                <div id="speed-limit-sign">60</div>
                 <div id="directions-overlay">
                     <i class="fas fa-info-circle"></i> Routing: Proceeding to destination...
                 </div>
             </div>
         </div>
 
-        <!-- Combined Phone Footer Controls Bar -->
+        <!-- Controls Bar -->
         <div id="controls-bar">
             <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Exit</a>
             <button class="control-btn btn-emergency" id="emergencyBtn" onclick="triggerEmergency()" title="Trigger SOS"><i class="fas fa-exclamation-triangle"></i></button>
@@ -622,13 +638,13 @@
         let liveYoloDetections = [];
         let lastDetectionTime = 0;
 
-        // Media Recorder state for physical local video baking & uploads
+        // Media Recorder state
         let mediaRecorder = null;
         let recordedChunks = [];
         let recExtension = 'mp4';
 
-        // Real-time GPS coordinates and Speed states
-        let currentLat = -1.286389; // Default Nairobi / generic coordinates before update
+        // GPS states
+        let currentLat = -1.286389;
         let currentLng = 36.817223;
         let currentSpeed = 0;
         let lastGpsTime = null;
@@ -644,23 +660,20 @@
         let routeSteps = [];
         let currentStepIndex = 0;
 
-        // OSD Telemetry Canvas & Scanning Overlays
+        // Canvas & OSD
         const liveCanvas = document.getElementById('live-canvas');
         const osdCtx = liveCanvas.getContext('2d');
         let osdInterval = null;
 
-        // Dynamic vehicle plate updated in real-time remotely via WebSocket or stored locally
         let currentPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
-
-        // Continuous Voice command recognition engine
         let speechRecognizer = null;
-
-        // Sweeper scanner state variable
         let sweepY = 100;
-        let sweepDirection = 2; // pixel speed of scanner line sweeping
-
-        // Search suggestion debounce
+        let sweepDirection = 2;
         let searchTimeout = null;
+
+        // North Lock state
+        let northLockActive = false;
+        let northLockViewState = null; // Store view state when locking
 
         // DOM bindings
         const video = document.getElementById('video');
@@ -680,6 +693,7 @@
         const speedLimitSign = document.getElementById('speed-limit-sign');
         const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
         const destinationInput = document.getElementById('destination-input');
+        const northLockBtn = document.getElementById('north-lock-btn');
 
         // Setup real-time clock
         function updateTime() {
@@ -727,6 +741,25 @@
                     pitch: 65, // Maximum 3D tilted cockpit view perspective
                     bearing: 0,
                     attributionControl: false
+        // 1. Initialize Leaflet Map
+        function initLeafletMap() {
+            try {
+                map = L.map('map', { 
+                    zoomControl: false,
+                    // Disable rotation by default (standard Leaflet doesn't support rotation)
+                }).setView([currentLat, currentLng], 15);
+                
+                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                    attribution: '© OpenStreetMap, © CartoDB'
+                }).addTo(map);
+
+                L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+                const icon = L.divIcon({
+                    className: 'custom-icon',
+                    html: '<div style="background: #00ff88; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px #00ff88;"></div>',
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
                 });
 
                 // Set up device marker
@@ -753,6 +786,8 @@
                             'geometry': { 'type': 'LineString', 'coordinates': [] }
                         }
                     });
+
+                travelPathPolyline = L.polyline([], { color: '#00ff88', weight: 4, opacity: 0.8 }).addTo(map);
 
                     map.addLayer({
                         'id': 'route-bg',
@@ -785,7 +820,69 @@
             }
         }
 
-        // Debounce input to trigger Nominatim Autocomplete suggestions
+        // North Lock Toggle Function - Fixed without setBearing
+        function toggleNorthLock() {
+            northLockActive = !northLockActive;
+            
+            if (northLockActive) {
+                // Activate North Lock
+                northLockBtn.classList.add('active');
+                northLockBtn.innerHTML = '<i class="fas fa-location-arrow" style="transform: rotate(45deg);"></i>';
+                
+                // Store current view state
+                northLockViewState = {
+                    center: map.getCenter(),
+                    zoom: map.getZoom()
+                };
+                
+                // Disable map interactions that could change orientation
+                if (map.dragging) map.dragging.disable();
+                if (map.touchZoom) map.touchZoom.disable();
+                if (map.doubleClickZoom) map.doubleClickZoom.disable();
+                if (map.scrollWheelZoom) map.scrollWheelZoom.disable();
+                
+                // Always center on current location with north orientation
+                map.setView([currentLat, currentLng], map.getZoom(), { animate: true });
+                
+                statusMessage.textContent = 'North Lock ON';
+            } else {
+                // Deactivate North Lock
+                northLockBtn.classList.remove('active');
+                northLockBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+                
+                // Re-enable map interactions
+                if (map.dragging) map.dragging.enable();
+                if (map.touchZoom) map.touchZoom.enable();
+                if (map.doubleClickZoom) map.doubleClickZoom.enable();
+                if (map.scrollWheelZoom) map.scrollWheelZoom.enable();
+                
+                // Restore previous view if available
+                if (northLockViewState) {
+                    map.setView(northLockViewState.center, northLockViewState.zoom, { animate: true });
+                    northLockViewState = null;
+                }
+                
+                statusMessage.textContent = 'North Lock OFF';
+            }
+            
+            setTimeout(() => {
+                statusMessage.textContent = isRecording ? 'Recording live...' : 'Ready';
+            }, 1500);
+        }
+
+        // Reset map view (kept for compatibility)
+        function resetMapView() {
+            if (map && deviceMarker) {
+                map.setView([currentLat, currentLng], 15, { animate: true });
+                const btn = document.getElementById('north-lock-btn');
+                btn.style.transform = 'rotate(360deg) scale(0.9)';
+                setTimeout(() => {
+                    btn.style.transform = 'rotate(0deg) scale(1)';
+                }, 400);
+            }
+        }
+
+        // Debounce input for autocomplete
         function handleSearchInputDebounced(event) {
             const query = event.target.value.trim();
             if (searchTimeout) clearTimeout(searchTimeout);
@@ -800,10 +897,9 @@
             }, 400);
         }
 
-        // Fetch places from Nominatim & Calculate distances dynamically
+        // Fetch places from Nominatim
         async function fetchAutocompleteSuggestions(query) {
             try {
-                // Focus search query around current location for relevant suggestions
                 const url = `/api/proxy/geocode/?q=${encodeURIComponent(query)}&limit=5&viewbox=${currentLng-0.5},${currentLat+0.5},${currentLng+0.5},${currentLat-0.5}`;
                 const res = await fetch(url);
                 const suggestions = await res.json();
@@ -817,14 +913,10 @@
                 suggestions.forEach(item => {
                     const lat = parseFloat(item.lat);
                     const lon = parseFloat(item.lon);
-
-                    // Calculate real-time Haversine distance from current device
                     const distance = getHaversineDistance(currentLat, currentLng, lat, lon);
 
                     const div = document.createElement('div');
                     div.className = 'suggestion-item';
-
-                    // Clean name representation
                     const displayName = item.display_name.split(',').slice(0, 3).join(', ');
 
                     div.innerHTML = `
@@ -835,7 +927,7 @@
                     div.onclick = () => {
                         destinationInput.value = item.display_name;
                         autocompleteDropdown.style.display = 'none';
-                        calculateDirections(); // Auto trigger directions calculation!
+                        calculateDirections();
                     };
 
                     autocompleteDropdown.appendChild(div);
@@ -848,9 +940,8 @@
             }
         }
 
-        // Mathematically calculate raw distance in KM between coordinate pairs
         function getHaversineDistance(lat1, lon1, lat2, lon2) {
-            const R = 6371; // radius in km
+            const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
@@ -860,7 +951,7 @@
             return R * c;
         }
 
-        // Search destination and fetch OSRM Directions
+        // Calculate directions
         async function calculateDirections() {
             const query = destinationInput.value;
             if (!query) return;
@@ -870,7 +961,6 @@
             directionsOverlay.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Geocoding destination...`;
 
             try {
-                // Fetch destination coordinates from OpenStreetMap Nominatim proxy
                 const geoUrl = `/api/proxy/geocode/?q=${encodeURIComponent(query)}&limit=1`;
                 const geoRes = await fetch(geoUrl);
                 const geoData = await geoRes.json();
@@ -886,7 +976,6 @@
 
                 directionsOverlay.innerHTML = `<i class="fas fa-compass fa-spin"></i> Fetching directions...`;
 
-                // Fetch route geometry from OSRM driving profile routing API proxy
                 const osrmUrl = `/api/proxy/route/?coordinates=${currentLng},${currentLat};${destLng},${destLat}&overview=full&geometries=geojson&steps=true`;
                 const osrmRes = await fetch(osrmUrl);
                 const osrmData = await osrmRes.json();
@@ -901,14 +990,12 @@
                 const distance = (route.distance / 1000).toFixed(1);
                 const duration = (route.duration / 60).toFixed(0);
 
-                // Extract route navigation steps for Google Maps style instructions
                 routeSteps = [];
                 currentStepIndex = 0;
                 if (route.legs && route.legs[0] && route.legs[0].steps) {
                     routeSteps = route.legs[0].steps;
                 }
 
-                // Dynamic speed limits generation based on route distance
                 let dynamicLimit = 50;
                 if (distance > 10) dynamicLimit = 80;
                 if (distance > 30) dynamicLimit = 110;
@@ -944,7 +1031,34 @@
                     .setPopup(new maplibregl.Popup({ offset: 10 }).setHTML(`<b>${displayName}</b><br>${distance} km away`))
                     .addTo(map);
 
-                // Set first instruction instantly
+                if (routePolylineBackground) map.removeLayer(routePolylineBackground);
+                if (routePolyline) map.removeLayer(routePolyline);
+
+                const latLngs = routeGeo.coordinates.map(coord => [coord[1], coord[0]]);
+
+                routePolylineBackground = L.polyline(latLngs, {
+                    color: '#1d4ed8',
+                    weight: 10,
+                    opacity: 0.8
+                }).addTo(map);
+
+                routePolyline = L.polyline(latLngs, {
+                    color: '#3b82f6',
+                    weight: 6,
+                    opacity: 1.0
+                }).addTo(map);
+
+                map.fitBounds(routePolyline.getBounds());
+
+                const destIcon = L.divIcon({
+                    className: 'dest-icon',
+                    html: '<div style="background: #ff3b30; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px #ff3b30;"></div>',
+                    iconSize: [14, 14],
+                    iconAnchor: [7, 7]
+                });
+                L.marker([destLat, destLng], { icon: destIcon }).addTo(map)
+                    .bindPopup(`<b>${displayName}</b><br>${distance} km away`).openPopup();
+
                 if (routeSteps.length > 0) {
                     const firstStep = routeSteps[0];
                     const iconClass = getDirectionIcon(firstStep.maneuver.modifier);
@@ -960,7 +1074,7 @@
             }
         }
 
-        // Establish WebSocket connection
+        // WebSocket connection
         function connectWebSocket() {
             const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${wsProtocol}//${window.location.host}/ws/video/`;
@@ -1012,19 +1126,15 @@
             }
         }
 
-        // 2. High-Fidelity OSD Canvas Rendering & Simulation of detected targets (baked directly into recorded stream!)
+        // OSD Canvas Rendering
         function startOSDDrawLoop() {
-            // Set 1920x1080 (1080p FHD) for high definition, clear videos
             liveCanvas.width = 1920;
             liveCanvas.height = 1080;
 
             if (osdInterval) clearInterval(osdInterval);
 
-            // Render loop at 15 FPS
             osdInterval = setInterval(() => {
-                // Clear background and render raw video if streaming is active, otherwise draw beautiful placeholder grid
                 if (video.videoWidth && video.readyState >= 2) {
-                    // Aspect ratio preserving crop-to-fill (cover) calculation
                     const vWidth = video.videoWidth;
                     const vHeight = video.videoHeight;
                     const cWidth = liveCanvas.width;
@@ -1049,7 +1159,6 @@
 
                     osdCtx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
                 } else {
-                    // Draw futuristic dark tech grid when waiting for camera
                     osdCtx.fillStyle = '#111';
                     osdCtx.fillRect(0, 0, liveCanvas.width, liveCanvas.height);
 
@@ -1073,7 +1182,7 @@
                     osdCtx.fillText("AWAITING CAMERA HARDWARE...", 440, 360);
                 }
 
-                // ------------------ Active LiDAR Laser Sweep scanner line ------------------
+                // Laser sweep
                 osdCtx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
                 osdCtx.lineWidth = 4;
                 osdCtx.beginPath();
@@ -1081,7 +1190,6 @@
                 osdCtx.lineTo(liveCanvas.width, sweepY);
                 osdCtx.stroke();
 
-                // Add soft laser glow beneath scanner line
                 osdCtx.fillStyle = 'rgba(0, 255, 136, 0.08)';
                 osdCtx.fillRect(0, sweepY - 10, liveCanvas.width, 20);
 
@@ -1090,12 +1198,11 @@
                     sweepDirection *= -1;
                 }
 
-                // ------------------ Live/Simulated YOLO detections overlay ------------------
+                // YOLO detections
                 if (typeof liveYoloDetections !== 'undefined' && liveYoloDetections && liveYoloDetections.length > 0 && (Date.now() - lastDetectionTime < 1500)) {
                     liveYoloDetections.forEach(det => {
                         const [x1, y1, x2, y2] = det.bbox;
 
-                        // Scale coordinates from the 480x270 WebSocket frame size to 1920x1080 canvas size
                         const rx1 = x1 * (1920 / 480);
                         const ry1 = y1 * (1080 / 270);
                         const rx2 = x2 * (1920 / 480);
@@ -1103,9 +1210,9 @@
                         const rw = rx2 - rx1;
                         const rh = ry2 - ry1;
 
-                        let color = '#00ff88'; // Green for vehicles
-                        if (det.class === 'person') color = '#38bdf8'; // Blue
-                        if (det.class === 'traffic light' || det.class === 'stop sign') color = '#ff3b30'; // Red
+                        let color = '#00ff88';
+                        if (det.class === 'person') color = '#38bdf8';
+                        if (det.class === 'traffic light' || det.class === 'stop sign') color = '#ff3b30';
 
                         osdCtx.strokeStyle = color;
                         osdCtx.lineWidth = 3;
@@ -1122,12 +1229,10 @@
 
                         const textWidth = osdCtx.measureText(label).width + 10;
                         osdCtx.fillRect(rx1, ry1 - 22, textWidth, 22);
-
                         osdCtx.fillStyle = '#000000';
                         osdCtx.fillText(label, rx1 + 5, ry1 - 6);
                     });
                 } else {
-                    // Draw professional camera focus bracket in center of screen
                     const cx = 1280 / 2;
                     const cy = 720 / 2;
                     const bSize = 60;
@@ -1135,28 +1240,24 @@
                     osdCtx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
                     osdCtx.lineWidth = 2;
 
-                    // Top-Left corner
                     osdCtx.beginPath();
                     osdCtx.moveTo(cx - bSize, cy - bSize + 15);
                     osdCtx.lineTo(cx - bSize, cy - bSize);
                     osdCtx.lineTo(cx - bSize + 15, cy - bSize);
                     osdCtx.stroke();
 
-                    // Top-Right corner
                     osdCtx.beginPath();
                     osdCtx.moveTo(cx + bSize, cy - bSize + 15);
                     osdCtx.lineTo(cx + bSize, cy - bSize);
                     osdCtx.lineTo(cx + bSize - 15, cy - bSize);
                     osdCtx.stroke();
 
-                    // Bottom-Left corner
                     osdCtx.beginPath();
                     osdCtx.moveTo(cx - bSize, cy + bSize - 15);
                     osdCtx.lineTo(cx - bSize, cy + bSize);
                     osdCtx.lineTo(cx - bSize + 15, cy + bSize);
                     osdCtx.stroke();
 
-                    // Bottom-Right corner
                     osdCtx.beginPath();
                     osdCtx.moveTo(cx + bSize, cy + bSize - 15);
                     osdCtx.lineTo(cx + bSize, cy + bSize);
@@ -1164,18 +1265,17 @@
                     osdCtx.stroke();
                 }
 
-                // Permanent REAGANTECH watermark logo
+                // Watermark
                 osdCtx.fillStyle = 'rgba(10, 15, 30, 0.8)';
                 osdCtx.fillRect(liveCanvas.width - 240, 20, 200, 45);
                 osdCtx.fillStyle = '#ff9500';
                 osdCtx.font = 'bold 24px Arial, sans-serif';
                 osdCtx.fillText('REAGANTECH', liveCanvas.width - 221, 52);
 
-                // Black translucent banner at the bottom for OSD text coordinates and speed overlay
+                // Bottom banner
                 osdCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
                 osdCtx.fillRect(0, liveCanvas.height - 100, liveCanvas.width, 100);
 
-                // Line 1: Date & Time, and Vehicle registration
                 const now = new Date();
                 osdCtx.fillStyle = '#ffffff';
                 osdCtx.font = '20px monospace';
@@ -1183,7 +1283,6 @@
                 osdCtx.fillStyle = '#ff9500';
                 osdCtx.fillText(`VEHICLE PLATE: ${currentPlate}`, liveCanvas.width - 380, liveCanvas.height - 60);
 
-                // Line 2: Speed and coordinates
                 osdCtx.fillStyle = '#00ff88';
                 osdCtx.font = 'bold 24px monospace';
                 osdCtx.fillText(`SPEED: ${currentSpeed.toFixed(1)} KM/H`, 40, liveCanvas.height - 22);
@@ -1192,10 +1291,10 @@
                 osdCtx.font = '20px monospace';
                 osdCtx.fillText(`GPS: ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`, liveCanvas.width - 380, liveCanvas.height - 22);
 
-            }, 66); // 15 FPS matching MediaRecorder stream settings to prevent delay
+            }, 66);
         }
 
-        // Toggle recording state
+        // Toggle recording
         async function toggleRecording() {
             if (isRecording) {
                 await stopRecording();
@@ -1204,7 +1303,7 @@
             }
         }
 
-        // Initialize camera capturing stream and start voice control background tasks
+        // Start recording
         async function startRecording() {
             try {
                 mediaStream = await navigator.mediaDevices.getUserMedia({
@@ -1223,15 +1322,10 @@
                 await createRecordingSession();
 
                 isRecording = true;
-
-                // Start hardware geolocation watch and draw loop
                 startLocationTracking();
                 startOSDDrawLoop();
-
-                // Defer speech listener until media capture permissions are granted!
                 startVoiceRecognition();
 
-                // Compile combined stream for MediaRecorder containing OSD frames and real microphone sound
                 recordedChunks = [];
                 const canvasStream = liveCanvas.captureStream(15);
                 const combinedStream = new MediaStream();
@@ -1242,7 +1336,6 @@
                     combinedStream.addTrack(audioTracks[0]);
                 }
 
-                // Detect device native recording formats
                 let recordingMimeType = 'video/mp4; codecs=h264';
                 recExtension = 'mp4';
 
@@ -1260,7 +1353,7 @@
                 console.log(`MediaRecorder utilizing mimeType: ${recordingMimeType}`);
                 mediaRecorder = new MediaRecorder(combinedStream, {
                     mimeType: recordingMimeType,
-                    videoBitsPerSecond: 6000000 // 6 Mbps for extremely crisp and clear FHD recording!
+                    videoBitsPerSecond: 6000000
                 });
                 mediaRecorder.ondataavailable = function(e) {
                     if (e.data && e.data.size > 0) {
@@ -1269,7 +1362,6 @@
                 };
                 mediaRecorder.start(1000);
 
-                // Lightweight frame transmissions for dashboard sync
                 if (frameInterval) clearInterval(frameInterval);
                 sendLightweightPreviews();
                 
@@ -1287,7 +1379,6 @@
             }
         }
 
-        // Call backend API endpoints to initiate metadata tracking
         async function createRecordingSession() {
             try {
                 const response = await fetch('/api/recordings/videos/', {
@@ -1343,7 +1434,7 @@
             }
         }
 
-        // 4. Save locations travelled in each driving session. Periodically push GPS data.
+        // Location tracking
         function startLocationTracking() {
             if (watchId) navigator.geolocation.clearWatch(watchId);
 
@@ -1364,7 +1455,6 @@
                 } else if (lastLat !== null && lastLng !== null && lastGpsTime !== null) {
                     const seconds = (now - lastGpsTime) / 1000;
                     if (seconds > 0.5) {
-                        // High-precision Fallback Haversine formula
                         const R = 6371;
                         const dLat = (latitude - lastLat) * Math.PI / 180;
                         const dLng = (longitude - lastLng) * Math.PI / 180;
@@ -1377,7 +1467,6 @@
                     }
                 }
 
-                // Assign states
                 currentLat = latitude;
                 currentLng = longitude;
                 currentSpeed = speedKmh;
@@ -1386,11 +1475,9 @@
                 lastLng = longitude;
                 lastGpsTime = now;
 
-                // Display updates
                 speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
                 gpsDisplay.innerHTML = `Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
 
-                // Push location point live to map marker
                 if (map) {
                     deviceMarker.setLngLat([longitude, latitude]);
 
@@ -1425,15 +1512,25 @@
 
                     // Populate and save travelled coordinate tracks locally
                     travelCoords.push([longitude, latitude]);
+                    deviceMarker.setLatLng([latitude, longitude]);
+                    
+                    // If north lock is active, keep map centered and north-oriented
+                    if (northLockActive) {
+                        map.setView([latitude, longitude], map.getZoom(), { animate: true });
+                    } else {
+                        map.panTo([latitude, longitude]);
+                    }
+
+                    travelCoords.push([latitude, longitude]);
+                    travelPathPolyline.setLatLngs(travelCoords);
                 }
 
-                // If navigation route is active, update the dynamic Google-Map-style navigation instructions
                 if (typeof routeSteps !== 'undefined' && routeSteps && routeSteps.length > 0) {
                     const nextStep = routeSteps[currentStepIndex];
                     if (nextStep && nextStep.maneuver && nextStep.maneuver.location) {
                         const stepLon = nextStep.maneuver.location[0];
                         const stepLat = nextStep.maneuver.location[1];
-                        const distToStep = getHaversineDistance(latitude, longitude, stepLat, stepLon) * 1000; // in meters
+                        const distToStep = getHaversineDistance(latitude, longitude, stepLat, stepLon) * 1000;
 
                         if (distToStep < 40 && currentStepIndex < routeSteps.length - 1) {
                             currentStepIndex++;
@@ -1449,7 +1546,6 @@
                     }
                 }
 
-                // Send coordinates track points over websockets to save permanently in SQLite database!
                 sendGPSData(latitude, longitude, speedKmh, heading);
             }
 
@@ -1457,7 +1553,6 @@
                 console.error('GPS tracking error:', error);
                 statusMessage.textContent = 'Hardware GPS Off';
 
-                // Fallback to low-accuracy IP/WiFi-based location which is extremely fast and robust for desktop/WiFi devices!
                 if (options.enableHighAccuracy) {
                     console.log("Retrying location tracking with high-accuracy disabled...");
                     options.enableHighAccuracy = false;
@@ -1471,7 +1566,6 @@
             watchId = navigator.geolocation.watchPosition(successCallback, errorCallback, options);
         }
 
-        // Helper to generate Google Map style turn instructions from OSRM step (Global Scope)
         function getReadableInstruction(step) {
             if (!step || !step.maneuver) return "Proceed straight";
 
@@ -1502,7 +1596,6 @@
             }
         }
 
-        // Helper to map OSRM maneuver modifiers to FA icons (Global Scope)
         function getDirectionIcon(modifier) {
             if (!modifier) return "fa-arrow-up";
             const mod = modifier.toLowerCase();
@@ -1531,7 +1624,6 @@
             }
         }
 
-        // Stream downscaled base64 frames over WebSockets
         function sendLightweightPreviews() {
             const previewCanvas = document.createElement('canvas');
             const previewCtx = previewCanvas.getContext('2d');
@@ -1554,7 +1646,7 @@
             }, 400);
         }
 
-        // Stop current session, finalize video compiling, and run database uploads
+        // Stop recording
         async function stopRecording() {
             if (!isRecording) return;
             isRecording = false;
@@ -1584,7 +1676,6 @@
             video.srcObject = null;
             currentSpeed = 0;
             
-            // Build file and perform gallery download
             setTimeout(async () => {
                 if (recordedChunks.length > 0) {
                     const videoBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/webm' });
@@ -1601,7 +1692,6 @@
                         window.URL.revokeObjectURL(downloadUrl);
                     }, 150);
 
-                    // Sync saved video back to Django storage for remote analytics
                     if (recordingId) {
                         const formData = new FormData();
                         formData.append('video_file', videoBlob, `recording.${recExtension}`);
@@ -1636,7 +1726,7 @@
             }, 600);
         }
 
-        // Speech activation integration
+        // Voice recognition
         function startVoiceRecognition() {
             window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             if (!window.SpeechRecognition) {
@@ -1714,16 +1804,18 @@
             }, 3000);
         }
 
-        // Initialize state, map, canvas loop, and sockets
+        // Initialize
         statusMessage.textContent = 'Loading subsystems...';
         initLeafletMap();
         startOSDDrawLoop();
         connectWebSocket();
-
-        // Find and track the actual live location immediately on page load
         startLocationTracking();
 
         // 5. Controls Auto-Hide & Double Tap Reappear System
+
+        startVoiceRecognition();
+
+        // Controls Auto-Hide
         let controlsTimeout = null;
         const controlsBar = document.getElementById('controls-bar');
         const phoneFrame = document.querySelector('.phone-frame');
@@ -1731,8 +1823,6 @@
         function showControls() {
             if (controlsTimeout) clearTimeout(controlsTimeout);
             controlsBar.classList.remove('fade-out');
-
-            // Auto hide controls panel after 4 seconds of inactivity
             controlsTimeout = setTimeout(() => {
                 hideControls();
             }, 4000);
@@ -1742,15 +1832,12 @@
             controlsBar.classList.add('fade-out');
         }
 
-        // Double tap detection on phone screen
         let lastTap = 0;
         phoneFrame.addEventListener('touchend', function(e) {
-            // Only trigger if clicked element is not a button to avoid interference
-            if (e.target.closest('.control-btn') || e.target.closest('.back-link')) {
-                showControls(); // Keep active
+            if (e.target.closest('.control-btn') || e.target.closest('.back-link') || e.target.closest('#north-lock-btn')) {
+                showControls();
                 return;
             }
-
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTap;
             if (tapLength < 300 && tapLength > 0) {
@@ -1760,20 +1847,17 @@
             lastTap = currentTime;
         });
 
-        // Support double click for desktop browser testing
         phoneFrame.addEventListener('dblclick', function(e) {
-            if (e.target.closest('.control-btn') || e.target.closest('.back-link')) {
+            if (e.target.closest('.control-btn') || e.target.closest('.back-link') || e.target.closest('#north-lock-btn')) {
                 return;
             }
             showControls();
         });
 
-        // Keep controls visible when interacting/clicking with buttons
         controlsBar.addEventListener('click', function() {
             showControls();
         });
 
-        // Trigger initial show so user knows where controls are located
         showControls();
     </script>
 </body>
