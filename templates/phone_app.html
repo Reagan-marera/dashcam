@@ -5,9 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Professional Dashcam App</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <!-- Leaflet Map CSS and JS CDNs -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Maplibre GL CSS and JS CDNs for high-performance tilted 3D vector navigation -->
+    <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+    <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <style>
         * {
             margin: 0;
@@ -651,12 +651,9 @@
         let lastLat = null;
         let lastLng = null;
 
-        // Leaflet Map states
+        // Maplibre 3D Map states
         let map = null;
         let deviceMarker = null;
-        let routePolyline = null;
-        let routePolylineBackground = null;
-        let travelPathPolyline = null;
         let travelCoords = [];
 
         // Navigation states
@@ -706,6 +703,44 @@
         setInterval(updateTime, 1000);
         updateTime();
 
+        // 1. Initialize Interactive Maplibre 3D Map on Bottom Split
+        function initLeafletMap() {
+            try {
+                // Free, open-source custom style using CartoDB Dark Raster layer with support for 3D tilt & rotation
+                const maplibreStyle = {
+                    "version": 8,
+                    "sources": {
+                        "cartodb-dark": {
+                            "type": "raster",
+                            "tiles": [
+                                "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                                "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                                "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
+                                "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+                            ],
+                            "tileSize": 256,
+                            "attribution": "© OpenStreetMap, © CartoDB"
+                        }
+                    },
+                    "layers": [
+                        {
+                            "id": "cartodb-dark-layer",
+                            "type": "raster",
+                            "source": "cartodb-dark",
+                            "minzoom": 0,
+                            "maxzoom": 20
+                        }
+                    ]
+                };
+
+                map = new maplibregl.Map({
+                    container: 'map',
+                    style: maplibreStyle,
+                    center: [currentLng, currentLat],
+                    zoom: 15,
+                    pitch: 65, // Maximum 3D tilted cockpit view perspective
+                    bearing: 0,
+                    attributionControl: false
         // 1. Initialize Leaflet Map
         function initLeafletMap() {
             try {
@@ -726,13 +761,62 @@
                     iconSize: [14, 14],
                     iconAnchor: [7, 7]
                 });
-                deviceMarker = L.marker([currentLat, currentLng], { icon: icon }).addTo(map);
+
+                // Set up device marker
+                const el = document.createElement('div');
+                el.className = 'device-pulse';
+                el.style.background = '#00ff88';
+                el.style.width = '16px';
+                el.style.height = '16px';
+                el.style.borderRadius = '50%';
+                el.style.border = '3px solid white';
+                el.style.boxShadow = '0 0 15px #00ff88';
+
+                deviceMarker = new maplibregl.Marker({ element: el })
+                    .setLngLat([currentLng, currentLat])
+                    .addTo(map);
+
+                // Add route layers when style is loaded
+                map.on('load', () => {
+                    // Pre-create route sources & layers
+                    map.addSource('route', {
+                        'type': 'geojson',
+                        'data': {
+                            'type': 'Feature',
+                            'geometry': { 'type': 'LineString', 'coordinates': [] }
+                        }
+                    });
 
                 travelPathPolyline = L.polyline([], { color: '#00ff88', weight: 4, opacity: 0.8 }).addTo(map);
 
-                console.log('Leaflet Map successfully loaded.');
+                    map.addLayer({
+                        'id': 'route-bg',
+                        'type': 'line',
+                        'source': 'route',
+                        'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                        'paint': {
+                            'line-color': '#1d4ed8',
+                            'line-width': 10,
+                            'line-opacity': 0.8
+                        }
+                    });
+
+                    map.addLayer({
+                        'id': 'route-fg',
+                        'type': 'line',
+                        'source': 'route',
+                        'layout': { 'line-join': 'round', 'line-cap': 'round' },
+                        'paint': {
+                            'line-color': '#3b82f6',
+                            'line-width': 6,
+                            'line-opacity': 1.0
+                        }
+                    });
+                });
+
+                console.log('Maplibre 3D Map successfully loaded.');
             } catch (e) {
-                console.error('Error initializing Leaflet map:', e);
+                console.error('Error initializing Maplibre map:', e);
             }
         }
 
@@ -916,6 +1000,36 @@
                 if (distance > 10) dynamicLimit = 80;
                 if (distance > 30) dynamicLimit = 110;
                 speedLimitSign.textContent = dynamicLimit;
+
+                // Draw route on 3D Maplibre Map using GeoJSON layers
+                if (map.getSource('route')) {
+                    map.getSource('route').setData({
+                        'type': 'Feature',
+                        'geometry': routeGeo
+                    });
+                }
+
+                // Fit bounds inside tilted perspective
+                const coordinates = routeGeo.coordinates;
+                const bounds = coordinates.reduce((bounds, coord) => {
+                    return bounds.extend(coord);
+                }, new maplibregl.LngLatBounds(coordinates[0], coordinates[0]));
+
+                map.fitBounds(bounds, { padding: 40, duration: 1500 });
+
+                // Add Marker for Destination
+                const destEl = document.createElement('div');
+                destEl.style.background = '#ff3b30';
+                destEl.style.width = '14px';
+                destEl.style.height = '14px';
+                destEl.style.borderRadius = '50%';
+                destEl.style.border = '3px solid white';
+                destEl.style.boxShadow = '0 0 15px #ff3b30';
+
+                new maplibregl.Marker({ element: destEl })
+                    .setLngLat([destLng, destLat])
+                    .setPopup(new maplibregl.Popup({ offset: 10 }).setHTML(`<b>${displayName}</b><br>${distance} km away`))
+                    .addTo(map);
 
                 if (routePolylineBackground) map.removeLayer(routePolylineBackground);
                 if (routePolyline) map.removeLayer(routePolyline);
@@ -1365,6 +1479,39 @@
                 gpsDisplay.innerHTML = `Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
 
                 if (map) {
+                    deviceMarker.setLngLat([longitude, latitude]);
+
+                    // Rotate map and tilt camera if Adaptive Map mode is active (3D Course Up 360 deg navigation)
+                    if (mapRotationMode === 'adaptive') {
+                        let activeHeading = heading;
+                        if ((activeHeading === null || activeHeading === undefined) && lastLat !== null && lastLng !== null) {
+                            // Calculate heading angle from movement
+                            const dy = latitude - lastLat;
+                            const dx = longitude - lastLng;
+                            activeHeading = Math.atan2(dx, dy) * (180 / Math.PI);
+                            if (activeHeading < 0) activeHeading += 360;
+                        }
+
+                        const rot = activeHeading || 0;
+                        map.easeTo({
+                            center: [longitude, latitude],
+                            bearing: rot, // Full 360-degree rotation matching heading
+                            pitch: 65, // Max 3D cockpit perspective angle
+                            duration: 1000,
+                            easing: (t) => t
+                        });
+                    } else {
+                        // Normal North-Locked Flat mode
+                        map.easeTo({
+                            center: [longitude, latitude],
+                            bearing: 0,
+                            pitch: 0,
+                            duration: 1000
+                        });
+                    }
+
+                    // Populate and save travelled coordinate tracks locally
+                    travelCoords.push([longitude, latitude]);
                     deviceMarker.setLatLng([latitude, longitude]);
                     
                     // If north lock is active, keep map centered and north-oriented
@@ -1663,6 +1810,9 @@
         startOSDDrawLoop();
         connectWebSocket();
         startLocationTracking();
+
+        // 5. Controls Auto-Hide & Double Tap Reappear System
+
         startVoiceRecognition();
 
         // Controls Auto-Hide
