@@ -2,23 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{% block title %}Dashcam System{% endblock %}</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
     {% block extra_css %}{% endblock %}
     <style>
+        /* ===== CAR THEME ROOT VARIABLES ===== */
         :root {
             --primary: #6366f1;
             --primary-hover: #4f46e5;
             --secondary: #10b981;
             --danger: #ef4444;
             --warning: #f59e0b;
-            --bg-dark: #0b0f19;
-            --card-glass: rgba(17, 25, 40, 0.75);
-            --border-glass: rgba(255, 255, 255, 0.08);
+            --bg-dark: #0a0e1a;
+            --card-glass: rgba(10, 14, 26, 0.85);
+            --border-glass: rgba(255, 255, 255, 0.06);
             --text-main: #f3f4f6;
-            --text-muted: #9ca3af;
+            --text-muted: #94a3b8;
+            --shadow-glow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            --radius: 14px;
         }
 
         * {
@@ -29,34 +32,56 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-dark);
-            background-image:
-                radial-gradient(at 10% 20%, rgba(99, 102, 241, 0.15) 0px, transparent 50%),
-                radial-gradient(at 90% 10%, rgba(16, 185, 129, 0.1) 0px, transparent 50%);
-            background-repeat: no-repeat;
-            background-attachment: fixed;
+            background: radial-gradient(ellipse at center, #0d1117 0%, #06080f 100%);
             color: var(--text-main);
             min-height: 100vh;
             line-height: 1.5;
+            overflow-x: hidden;
         }
 
-        /* Nav bar - premium dark glassmorphism */
+        /* ===== CAR-THEMED NAVBAR ===== */
         .navbar {
-            background: rgba(10, 15, 30, 0.7);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            background: rgba(10, 14, 26, 0.85);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border-glass);
-            padding: 15px 30px;
+            padding: 12px 24px;
             display: flex;
             justify-content: space-between;
             align-items: center;
             position: sticky;
             top: 0;
             z-index: 1000;
+            transition: all 0.3s ease;
         }
 
-        .navbar h2 {
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+        }
+
+        .navbar-brand .car-icon {
+            width: 42px;
+            height: 42px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 20px;
+            color: white;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            transition: transform 0.3s ease;
+        }
+
+        .navbar-brand .car-icon:hover {
+            transform: rotate(-5deg) scale(1.05);
+        }
+
+        .navbar-brand h2 {
+            font-size: 18px;
             font-weight: 800;
             letter-spacing: 0.5px;
             background: linear-gradient(135deg, #a5b4fc 0%, #818cf8 100%);
@@ -64,163 +89,525 @@
             -webkit-text-fill-color: transparent;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
+        }
+
+        .navbar-brand .subtitle {
+            font-size: 9px;
+            color: var(--text-muted);
+            -webkit-text-fill-color: var(--text-muted);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            font-weight: 600;
+            display: block;
         }
 
         .nav-links {
             display: flex;
-            gap: 20px;
+            gap: 8px;
+            align-items: center;
         }
 
         .navbar a {
-            color: var(--text-main);
+            color: var(--text-muted);
             text-decoration: none;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             padding: 8px 16px;
-            border-radius: 8px;
-            transition: all 0.3s ease;
+            border-radius: 10px;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             display: flex;
             align-items: center;
             gap: 8px;
+            position: relative;
         }
 
         .navbar a:hover {
-            background: rgba(255,255,255,0.05);
-            color: var(--primary);
+            color: var(--text-main);
+            background: rgba(255, 255, 255, 0.05);
         }
 
         .navbar a.active {
-            background: rgba(99, 102, 241, 0.15);
-            border: 1px solid rgba(99, 102, 241, 0.3);
+            background: rgba(99, 102, 241, 0.12);
             color: #818cf8;
+            border: 1px solid rgba(99, 102, 241, 0.2);
         }
 
+        .navbar a.active::before {
+            content: '';
+            position: absolute;
+            bottom: -1px;
+            left: 20%;
+            right: 20%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #818cf8, transparent);
+            border-radius: 2px;
+        }
+
+        .navbar a i {
+            font-size: 14px;
+        }
+
+        /* ===== GPS STATUS INDICATOR ===== */
+        .gps-status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            background: rgba(52, 199, 89, 0.1);
+            color: #34c759;
+            border: 1px solid rgba(52, 199, 89, 0.15);
+        }
+        .gps-status-indicator .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #34c759;
+            animation: pulse-dot 1.5s infinite;
+        }
+        .gps-status-indicator.offline {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+            border-color: rgba(239, 68, 68, 0.15);
+        }
+        .gps-status-indicator.offline .dot {
+            background: #f87171;
+            animation: none;
+        }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(0.7); }
+        }
+
+        /* ===== CONTAINER ===== */
         .container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 25px 20px;
+            padding: 20px 20px 30px;
         }
 
-        /* Elegant card - premium glassmorphism */
+        /* ===== GLASS CARD ===== */
         .card {
             background: var(--card-glass);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid var(--border-glass);
-            border-radius: 16px;
-            padding: 24px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-            margin-bottom: 25px;
-            transition: transform 0.3s, box-shadow 0.3s;
+            border-radius: var(--radius);
+            padding: 20px;
+            box-shadow: var(--shadow-glow);
+            margin-bottom: 20px;
+            transition: all 0.3s ease;
         }
 
         .card:hover {
-            border-color: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.08);
         }
 
-        /* Buttons styles */
+        .card-title {
+            color: #fff;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .card-title i {
+            color: var(--primary);
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+        }
+
+        /* ===== BUTTONS ===== */
         .btn {
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
             font-weight: 600;
-            font-size: 14px;
-            padding: 10px 20px;
+            font-size: 13px;
+            padding: 8px 18px;
             border-radius: 10px;
             border: none;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             text-decoration: none;
         }
 
+        .btn:active { transform: scale(0.95); }
+        .btn:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.3); }
+
         .btn-primary {
-            background: var(--primary);
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
         }
-        .btn-primary:hover {
-            background: var(--primary-hover);
-            transform: translateY(-1px);
-        }
+        .btn-primary:hover { background: linear-gradient(135deg, #7c7ff7, #8a5bc7); }
 
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.05);
             color: var(--text-main);
             border: 1px solid var(--border-glass);
         }
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.15);
+        .btn-secondary:hover { background: rgba(255, 255, 255, 0.1); }
+
+        .btn-success {
+            background: linear-gradient(135deg, #34c759, #28a745);
+            color: white;
+        }
+        .btn-success:hover { background: linear-gradient(135deg, #40d867, #2fb84f); }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ff3b30, #dc3545);
+            color: white;
+        }
+        .btn-danger:hover { background: linear-gradient(135deg, #ff554a, #e84555); }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(255,255,255,0.1);
+            color: var(--text-muted);
+        }
+        .btn-outline:hover {
+            background: rgba(255,255,255,0.05);
+            color: white;
         }
 
-        /* Alert notifications */
+        .btn-sm {
+            padding: 6px 14px;
+            font-size: 12px;
+        }
+
+        /* ===== ALERTS ===== */
         .flash-messages {
             margin-bottom: 20px;
         }
 
         .alert {
-            padding: 14px 20px;
+            padding: 12px 18px;
             border-radius: 12px;
-            margin-bottom: 12px;
+            margin-bottom: 10px;
             font-weight: 500;
-            font-size: 14px;
+            font-size: 13px;
             border: 1px solid transparent;
             backdrop-filter: blur(10px);
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .alert-success {
-            background: rgba(16, 185, 129, 0.15);
+            background: rgba(16, 185, 129, 0.12);
             color: #34d399;
-            border-color: rgba(16, 185, 129, 0.25);
+            border-color: rgba(16, 185, 129, 0.2);
         }
         .alert-error {
-            background: rgba(239, 68, 68, 0.15);
+            background: rgba(239, 68, 68, 0.12);
             color: #f87171;
-            border-color: rgba(239, 68, 68, 0.25);
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+        .alert-warning {
+            background: rgba(245, 158, 11, 0.12);
+            color: #fbbf24;
+            border-color: rgba(245, 158, 11, 0.2);
+        }
+        .alert-info {
+            background: rgba(99, 102, 241, 0.12);
+            color: #818cf8;
+            border-color: rgba(99, 102, 241, 0.2);
         }
 
-        /* Responsive Navbar adjustments for Android and iOS screens */
-        @media (max-width: 680px) {
+        /* ===== RESPONSIVE NAVBAR ===== */
+        @media (max-width: 768px) {
             .navbar {
                 flex-direction: column;
-                gap: 15px;
-                padding: 15px;
+                gap: 12px;
+                padding: 12px 16px;
             }
+
+            .navbar-brand h2 {
+                font-size: 16px;
+            }
+            .navbar-brand .car-icon {
+                width: 36px;
+                height: 36px;
+                font-size: 16px;
+            }
+
             .nav-links {
                 width: 100%;
-                justify-content: space-around;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 4px;
             }
+
             .navbar a {
                 padding: 6px 12px;
-                font-size: 13px;
+                font-size: 12px;
             }
+            .navbar a i {
+                font-size: 12px;
+            }
+
+            .gps-status-indicator {
+                font-size: 9px;
+                padding: 4px 10px;
+            }
+
+            .container {
+                padding: 12px 12px 20px;
+            }
+
+            .card {
+                padding: 16px;
+                border-radius: 12px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .navbar {
+                padding: 10px 12px;
+                gap: 10px;
+            }
+
+            .navbar-brand h2 {
+                font-size: 14px;
+            }
+            .navbar-brand .car-icon {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            .navbar-brand .subtitle {
+                font-size: 8px;
+            }
+
+            .nav-links {
+                gap: 2px;
+            }
+
+            .navbar a {
+                padding: 5px 10px;
+                font-size: 11px;
+                border-radius: 8px;
+            }
+            .navbar a i {
+                font-size: 11px;
+            }
+
+            .gps-status-indicator {
+                font-size: 8px;
+                padding: 3px 8px;
+            }
+            .gps-status-indicator .dot {
+                width: 4px;
+                height: 4px;
+            }
+
+            .container {
+                padding: 8px 8px 16px;
+            }
+
+            .card {
+                padding: 12px;
+                border-radius: 10px;
+                margin-bottom: 12px;
+            }
+
+            .btn {
+                font-size: 12px;
+                padding: 6px 14px;
+                border-radius: 8px;
+            }
+            .btn-sm {
+                font-size: 11px;
+                padding: 4px 10px;
+            }
+
+            .alert {
+                font-size: 12px;
+                padding: 10px 14px;
+            }
+        }
+
+        /* ===== SCROLLBAR ===== */
+        ::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.02);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.5);
+        }
+
+        /* ===== UTILITY ===== */
+        .text-center { text-align: center; }
+        .text-muted { color: var(--text-muted); }
+        .mt-2 { margin-top: 15px; }
+        .mb-2 { margin-bottom: 15px; }
+        .flex { display: flex; }
+        .flex-center { display: flex; align-items: center; justify-content: center; }
+        .flex-between { display: flex; justify-content: space-between; align-items: center; }
+        .gap-2 { gap: 10px; }
+        .gap-3 { gap: 15px; }
+        .flex-wrap { flex-wrap: wrap; }
+        .w-100 { width: 100%; }
+
+        /* ===== ANIMATIONS ===== */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .slide-up {
+            animation: slideUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        /* ===== LEAFLET OVERRIDES ===== */
+        .leaflet-control-zoom {
+            border: none !important;
+        }
+        .leaflet-control-zoom a {
+            background: rgba(10, 14, 26, 0.8) !important;
+            color: white !important;
+            border: 1px solid rgba(255,255,255,0.06) !important;
+            backdrop-filter: blur(8px) !important;
+        }
+        .leaflet-control-zoom a:hover {
+            background: rgba(255,255,255,0.1) !important;
+        }
+        .leaflet-popup-content-wrapper {
+            background: rgba(10, 14, 26, 0.95) !important;
+            color: white !important;
+            border: 1px solid rgba(255,255,255,0.06) !important;
+            border-radius: 10px !important;
+            backdrop-filter: blur(12px) !important;
+        }
+        .leaflet-popup-tip {
+            background: rgba(10, 14, 26, 0.95) !important;
+        }
+        .leaflet-popup-content {
+            font-size: 12px !important;
+        }
+        .leaflet-tile-pane {
+            filter: brightness(0.7) contrast(1.2);
         }
     </style>
 </head>
 <body>
+    <!-- ===== CAR-THEMED NAVBAR ===== -->
     <nav class="navbar">
-        <div>
-            <h2><i class="fas fa-video"></i> DASHCAM CLOUD</h2>
-        </div>
+        <a href="/" class="navbar-brand">
+            <div class="car-icon">
+                <i class="fas fa-car"></i>
+            </div>
+            <div>
+                <h2>
+                    DASHCAM
+                    <span class="subtitle">Cloud</span>
+                </h2>
+            </div>
+        </a>
         <div class="nav-links">
-            <a href="/" class="{% if request.path == '/' %}active{% endif %}"><i class="fas fa-chart-line"></i> Dashboard</a>
-            <a href="/phone-app/" class="{% if request.path == '/phone-app/' %}active{% endif %}"><i class="fas fa-mobile-alt"></i> Phone App</a>
+            <a href="/" class="{% if request.path == '/' %}active{% endif %}">
+                <i class="fas fa-tachometer-alt"></i> <span>Dashboard</span>
+            </a>
+            <a href="/phone-app/" class="{% if request.path == '/phone-app/' %}active{% endif %}">
+                <i class="fas fa-mobile-alt"></i> <span>Phone App</span>
+            </a>
+            <!-- FIXED: Use correct URL pattern for recordings -->
+            <a href="{% url 'recordings' %}" class="{% if '/recordings/' in request.path %}active{% endif %}">
+                <i class="fas fa-history"></i> <span>Recordings</span>
+            </a>
+            <span class="gps-status-indicator" id="navGpsStatus">
+                <span class="dot"></span> GPS
+            </span>
         </div>
     </nav>
 
     <div class="container">
+        <!-- ===== FLASH MESSAGES ===== -->
         {% if messages %}
         <div class="flash-messages">
             {% for message in messages %}
-            <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+            <div class="alert alert-{{ message.tags }} fade-in">
+                <i class="fas fa-{% if message.tags == 'success' %}check-circle{% elif message.tags == 'error' %}exclamation-circle{% elif message.tags == 'warning' %}exclamation-triangle{% else %}info-circle{% endif %}"></i>
+                {{ message }}
+            </div>
             {% endfor %}
         </div>
         {% endif %}
 
+        <!-- ===== MAIN CONTENT ===== -->
         {% block content %}{% endblock %}
     </div>
 
+    <!-- ===== SCRIPTS ===== -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    
+    <!-- ===== GPS STATUS INDICATOR ===== -->
+    <script>
+        // Update GPS status indicator based on geolocation
+        (function() {
+            const gpsIndicator = document.getElementById('navGpsStatus');
+            if (!gpsIndicator) return;
+
+            // Check if geolocation is available
+            if (!navigator.geolocation) {
+                gpsIndicator.className = 'gps-status-indicator offline';
+                gpsIndicator.innerHTML = '<span class="dot"></span> No GPS';
+                return;
+            }
+
+            // Try to get position
+            navigator.geolocation.getCurrentPosition(
+                function() {
+                    // Success - GPS is working
+                    gpsIndicator.className = 'gps-status-indicator';
+                    gpsIndicator.innerHTML = '<span class="dot"></span> GPS';
+                },
+                function() {
+                    // Failed - GPS unavailable
+                    gpsIndicator.className = 'gps-status-indicator offline';
+                    gpsIndicator.innerHTML = '<span class="dot"></span> No GPS';
+                },
+                { timeout: 5000, enableHighAccuracy: true }
+            );
+
+            // Periodically check GPS status
+            setInterval(function() {
+                navigator.geolocation.getCurrentPosition(
+                    function() {
+                        gpsIndicator.className = 'gps-status-indicator';
+                        gpsIndicator.innerHTML = '<span class="dot"></span> GPS';
+                    },
+                    function() {
+                        gpsIndicator.className = 'gps-status-indicator offline';
+                        gpsIndicator.innerHTML = '<span class="dot"></span> No GPS';
+                    },
+                    { timeout: 5000, enableHighAccuracy: true }
+                );
+            }, 30000); // Check every 30 seconds
+        })();
+    </script>
+
     {% block extra_js %}{% endblock %}
 </body>
 </html>

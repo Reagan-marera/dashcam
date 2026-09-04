@@ -3,684 +3,596 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Professional Dashcam App</title>
+    <title>Dashcam Pro • 3D Navigation</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-    <!-- Maplibre GL CSS and JS CDNs for high-performance tilted 3D vector navigation -->
     <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
     <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background: #111;
-            color: white;
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-        }
-
-        /* Phone Frame styled specifically for Desktop Preview & Mobile viewport adaptation */
+        * { margin:0; padding:0; box-sizing:border-box; user-select:none; -webkit-user-select:none; }
+        body { font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background:#080b16; color:white; height:100vh; display:flex; align-items:center; justify-content:center; overflow:hidden; }
         .phone-frame {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            max-width: 480px;
-            max-height: 95vh;
-            background: #000;
-            overflow: hidden;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.8);
-            border: 8px solid #222;
-            border-radius: 40px;
-            display: flex;
-            flex-direction: column;
+            position:relative;
+            width:100%; height:100%;
+            max-width:480px; max-height:95vh;
+            background:#000;
+            overflow:hidden;
+            box-shadow:0 10px 40px rgba(0,0,0,0.8);
+            border:8px solid #141a2a;
+            border-radius:40px;
+            display:flex;
+            flex-direction:column;
         }
-
-        @media (max-width: 500px) {
-            .phone-frame {
-                max-width: 100%;
-                max-height: 100%;
-                border: none;
-                border-radius: 0;
-            }
-        }
-
+        @media(max-width:500px){ .phone-frame{ max-width:100%; max-height:100%; border:none; border-radius:0; } }
         .phone-notch {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 150px;
-            height: 20px;
-            background: #222;
-            border-bottom-left-radius: 15px;
-            border-bottom-right-radius: 15px;
-            z-index: 1000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position:absolute; top:0; left:50%; transform:translateX(-50%);
+            width:150px; height:20px; background:#141a2a;
+            border-bottom-left-radius:15px; border-bottom-right-radius:15px;
+            z-index:1000; display:flex; justify-content:center; align-items:center;
         }
-        .phone-notch::before {
-            content: '';
-            width: 50px;
-            height: 4px;
-            background: #333;
-            border-radius: 2px;
-        }
-
-        .split-container {
-            display: flex;
-            flex-direction: column;
-            width: 100%;
-            flex: 1;
-            min-height: 0;
-        }
-
+        .phone-notch::before { content:''; width:50px; height:4px; background:#2a3050; border-radius:2px; }
+        .split-container { display:flex; flex-direction:column; width:100%; flex:1; min-height:0; }
         #video-container {
-            position: relative;
-            flex: 1;
-            width: 100%;
-            height: 50%;
-            background: #000;
-            overflow: hidden;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-bottom: 2px solid #222;
+            position:relative; flex:1; width:100%; height:50%;
+            background:#080b16; overflow:hidden;
+            display:flex; align-items:center; justify-content:center;
+            border-bottom:2px solid #1a2040;
         }
-
-        #video {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 1px;
-            height: 1px;
-            opacity: 0.001;
-            pointer-events: none;
+        #video { 
+            position:absolute; 
+            top:0; left:0; 
+            width:100%; 
+            height:100%; 
+            object-fit:cover;
+            opacity:0.001;
+            pointer-events:none;
         }
-
-        #live-canvas {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            background: #000;
-            aspect-ratio: 16/9;
+        #live-canvas { 
+            width:100%; 
+            height:100%; 
+            object-fit:contain; 
+            background:#080b16;
+            display:block;
         }
-
         #overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            pointer-events: none;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            padding: 30px 15px 15px 15px;
-            z-index: 5;
+            position:absolute; top:0; left:0; right:0; bottom:0;
+            pointer-events:none; display:flex; flex-direction:column; justify-content:space-between;
+            padding:30px 15px 15px 15px; z-index:5;
         }
-
         .app-status-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            font-size: 11px;
-            font-weight: 500;
-            background: rgba(0, 0, 0, 0.4);
-            padding: 6px 10px;
-            border-radius: 10px;
-            backdrop-filter: blur(10px);
-            -webkit-backdrop-filter: blur(10px);
-            pointer-events: auto;
+            display:flex; justify-content:space-between; align-items:center;
+            font-size:10px; font-weight:500;
+            background:rgba(0,0,0,0.7); padding:5px 12px; border-radius:12px;
+            backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+            pointer-events:auto; border:1px solid rgba(255,255,255,0.06);
         }
-
-        .status-left, .status-right {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
-
+        .status-left, .status-right { display:flex; align-items:center; gap:5px; }
         .recording-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #ff3b30;
-            display: none;
+            width:7px; height:7px; border-radius:50%; background:#ff3b30; display:none;
         }
-
-        .recording-dot.active {
-            display: block;
-            animation: pulse 1s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.3; transform: scale(1.1); }
-        }
-
+        .recording-dot.active { display:block; animation:pulse 1s infinite; }
+        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.3;transform:scale(1.2)} }
         #status-message {
-            position: absolute;
-            top: 65px;
-            left: 15px;
-            background: rgba(0,0,0,0.7);
-            padding: 4px 10px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-            border: 1px solid rgba(255,255,255,0.1);
+            position:absolute; top:62px; left:12px;
+            background:rgba(0,0,0,0.8); padding:3px 10px; border-radius:10px;
+            font-size:10px; font-weight:600; border:1px solid rgba(255,255,255,0.06);
+            color:#94a3b8;
         }
-
         #time-display {
-            position: absolute;
-            top: 65px;
-            right: 15px;
-            font-size: 11px;
-            font-weight: 600;
-            background: rgba(0,0,0,0.7);
-            padding: 4px 10px;
-            border-radius: 12px;
-            border: 1px solid rgba(255,255,255,0.1);
+            position:absolute; top:62px; right:12px;
+            font-size:10px; font-weight:600;
+            background:rgba(0,0,0,0.8); padding:3px 10px; border-radius:10px;
+            border:1px solid rgba(255,255,255,0.06);
+            color:#94a3b8;
         }
-
         #voice-indicator {
-            position: absolute;
-            top: 105px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0,0,0,0.8);
-            padding: 5px 12px;
-            border-radius: 15px;
-            border: 1px solid rgba(255,255,255,0.1);
-            font-size: 10px;
-            font-weight: bold;
-            color: #a5b4fc;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-            pointer-events: none;
+            position:absolute; top:100px; left:50%; transform:translateX(-50%);
+            background:rgba(0,0,0,0.85); padding:4px 12px; border-radius:12px;
+            border:1px solid rgba(255,255,255,0.06);
+            font-size:9px; font-weight:bold; color:#a5b4fc;
+            display:flex; align-items:center; gap:5px; pointer-events:none;
         }
-
-        @keyframes micPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
-        }
-        .mic-active {
-            animation: micPulse 1.5s infinite;
-            color: #818cf8;
-        }
-
-        #speed-overlay-box {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            background: rgba(0, 0, 0, 0.75);
-            backdrop-filter: blur(5px);
-            border-radius: 10px;
-            padding: 6px 12px;
-            border: 1px solid rgba(255,255,255,0.1);
-            text-align: center;
-        }
-        #speed-display {
-            font-size: 24px;
-            font-weight: 800;
-            color: #00ff88;
-        }
-        #speed-display small {
-            font-size: 11px;
-            color: white;
-            font-weight: 400;
-        }
-
+        @keyframes micPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+        .mic-active { animation:micPulse 1.5s infinite; color:#818cf8; }
         #gps-display {
-            position: absolute;
-            bottom: 15px;
-            left: 15px;
-            font-size: 10px;
-            background: rgba(0,0,0,0.75);
-            padding: 6px 10px;
-            border-radius: 10px;
-            border: 1px solid rgba(255,255,255,0.1);
-            line-height: 1.3;
+            position:absolute; bottom:12px; left:12px;
+            font-size:8px; background:rgba(0,0,0,0.8); padding:4px 8px; border-radius:8px;
+            border:1px solid rgba(255,255,255,0.06); line-height:1.4;
+            color:#94a3b8; font-family:monospace;
+            z-index:10;
         }
-
         #map-container {
-            position: relative;
-            flex: 1;
-            width: 100%;
-            height: 50%;
-            background: #222;
+            position:relative; flex:1; width:100%; height:50%;
+            background:#080b16; overflow:hidden;
         }
-
-        #map {
-            width: 100%;
-            height: 100%;
-        }
-
+        #map { width:100%; height:100%; }
         .map-search-control {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            right: 10px;
-            z-index: 1000;
-            background: rgba(20, 20, 20, 0.9);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 12px;
-            padding: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            backdrop-filter: blur(10px);
+            position:absolute; top:6px; left:6px; right:6px; z-index:1000;
+            background:rgba(8,11,22,0.95); border:1px solid rgba(255,255,255,0.06);
+            border-radius:12px; padding:6px; display:flex; flex-direction:column; gap:4px;
+            box-shadow:0 4px 20px rgba(0,0,0,0.7); backdrop-filter:blur(16px);
         }
-
-        .search-row {
-            display: flex;
-            gap: 6px;
-            width: 100%;
-        }
-
+        .search-row { display:flex; gap:4px; width:100%; }
         .map-search-control input {
-            flex: 1;
-            background: rgba(0,0,0,0.4);
-            border: 1px solid rgba(255,255,255,0.1);
-            color: white;
-            padding: 6px 10px;
-            border-radius: 8px;
-            font-size: 12px;
-            outline: none;
+            flex:1; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.06);
+            color:white; padding:6px 12px; border-radius:8px; font-size:11px;
+            outline:none; transition:border-color 0.3s;
+            font-family: inherit;
         }
-
+        .map-search-control input:focus { border-color:#6366f1; }
+        .map-search-control input::placeholder { color:#555; font-size:10px; }
         .map-search-control button {
-            background: #6366f1;
-            color: white;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 8px;
-            font-size: 12px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: opacity 0.2s;
+            background:#6366f1; color:white; border:none;
+            padding:6px 14px; border-radius:8px; font-size:11px; font-weight:bold;
+            cursor:pointer; transition:all 0.2s; white-space:nowrap;
         }
-
-        .map-search-control button:active {
-            opacity: 0.8;
-        }
-
+        .map-search-control button:hover { background:#7c7ff7; }
+        .map-search-control button:active { transform:scale(0.95); }
         #autocomplete-dropdown {
-            width: 100%;
-            max-height: 180px;
-            overflow-y: auto;
-            background: rgba(20, 20, 20, 0.95);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            display: none;
-            padding: 4px;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            width:100%; max-height:180px; overflow-y:auto;
+            background:rgba(8,11,22,0.98); border:1px solid rgba(255,255,255,0.06);
+            border-radius:8px; display:none; padding:4px;
         }
-
         .suggestion-item {
-            padding: 8px 10px;
-            font-size: 11px;
-            color: #ddd;
-            cursor: pointer;
-            border-radius: 6px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: background 0.2s;
-            text-align: left;
+            padding:8px 12px; font-size:11px; color:#ccc;
+            cursor:pointer; border-radius:6px; display:flex;
+            justify-content:space-between; align-items:center;
+            transition:background 0.2s;
+            border-bottom:1px solid rgba(255,255,255,0.03);
         }
-
-        .suggestion-item:hover {
-            background: rgba(99, 102, 241, 0.3);
-            color: white;
+        .suggestion-item:last-child { border-bottom:none; }
+        .suggestion-item:hover { background:rgba(99,102,241,0.2); color:white; }
+        .suggestion-item .main {
+            display:flex;
+            flex-direction:column;
+            gap:2px;
+            flex:1;
         }
-
+        .suggestion-item .main .name {
+            font-weight:600;
+            color:#fff;
+        }
+        .suggestion-item .main .address {
+            font-size:10px;
+            color:#94a3b8;
+        }
         .suggestion-item .dist {
-            font-size: 9px;
-            font-weight: bold;
-            background: rgba(0, 255, 136, 0.15);
-            color: #00ff88;
-            padding: 2px 6px;
-            border-radius: 10px;
-            white-space: nowrap;
+            font-size:9px; font-weight:bold; 
+            background:rgba(0,255,136,0.1);
+            color:#00ff88; padding:2px 10px; border-radius:12px;
+            white-space:nowrap;
+            margin-left:8px;
+        }
+        .suggestion-item .type {
+            font-size:8px;
+            color:#667eea;
+            padding:2px 8px;
+            border-radius:10px;
+            background:rgba(99,102,241,0.1);
+            white-space:nowrap;
+            margin-left:4px;
+        }
+        .suggestion-item .loading-suggestion {
+            text-align:center;
+            padding:12px;
+            color:#94a3b8;
+            font-size:12px;
+        }
+        .suggestion-item .loading-suggestion i {
+            margin-right:6px;
         }
 
         #speed-limit-sign {
-            position: absolute;
-            bottom: 15px;
-            right: 15px;
-            z-index: 1000;
-            width: 46px;
-            height: 46px;
-            background: white;
-            border: 5px solid #ff3b30;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: black;
-            font-weight: 900;
-            font-size: 16px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.5);
+            position:absolute; bottom:12px; right:12px; z-index:1000;
+            width:44px; height:44px; background:white; border:4px solid #ff3b30;
+            border-radius:50%; display:flex; align-items:center; justify-content:center;
+            color:#1a1a2e; font-weight:900; font-size:16px;
+            box-shadow:0 4px 20px rgba(0,0,0,0.6);
         }
-
         #directions-overlay {
-            position: absolute;
-            bottom: 15px;
-            left: 15px;
-            right: 70px;
-            z-index: 1000;
-            background: rgba(0,0,0,0.9);
-            border: 1px solid rgba(255,255,255,0.15);
-            border-radius: 10px;
-            padding: 10px 14px;
-            font-size: 12px;
-            color: #34d399;
-            font-weight: 600;
-            display: none;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+            position:absolute; bottom:12px; left:12px; right:64px; z-index:1000;
+            background:rgba(8,11,22,0.92); backdrop-filter:blur(12px);
+            border:1px solid rgba(255,255,255,0.06); border-radius:10px;
+            padding:8px 14px; font-size:11px; color:#34d399; font-weight:600;
+            display:none; box-shadow:0 4px 20px rgba(0,0,0,0.5);
         }
-
-        /* North Lock Toggle Button - replaces compass */
-        #north-lock-btn {
-            position: absolute;
-            top: 75px;
-            right: 12px;
-            z-index: 1000;
-            width: 44px;
-            height: 44px;
-            border-radius: 50%;
-            background: rgba(20, 25, 40, 0.9);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            color: white;
-            font-size: 18px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6);
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            pointer-events: auto;
+        #heading-lock-btn {
+            position:absolute; top:68px; right:10px; z-index:1000;
+            width:38px; height:38px; border-radius:50%;
+            background:rgba(8,11,22,0.9); backdrop-filter:blur(12px);
+            border:2px solid rgba(255,255,255,0.1); color:white; font-size:15px;
+            cursor:pointer; display:flex; align-items:center; justify-content:center;
+            box-shadow:0 4px 20px rgba(0,0,0,0.5);
+            transition:all 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+            pointer-events:auto;
         }
-
-        #north-lock-btn.active {
-            background: #3b82f6;
-            border-color: #93bbfc;
-            box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
-        }
-
-        #north-lock-btn:active {
-            transform: scale(0.85);
-        }
-
+        #heading-lock-btn.active { background:#3b82f6; border-color:#93bbfc; box-shadow:0 0 30px rgba(59,130,246,0.4); }
+        #heading-lock-btn:active { transform:scale(0.85); }
+        
+        /* Controls Bar - Middle of Screen - ONLY ON DOUBLE CLICK */
         #controls-bar {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            z-index: 2000;
-            background: rgba(10, 15, 30, 0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 30px;
-            padding: 15px 25px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            gap: 20px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.9);
-            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            opacity: 1;
-            pointer-events: auto;
+            position:absolute; 
+            top:50%; left:50%; 
+            transform:translate(-50%, -50%);
+            z-index:2000; 
+            background:rgba(8,11,22,0.92); 
+            backdrop-filter:blur(24px);
+            border:1.5px solid rgba(255,255,255,0.1); 
+            border-radius:30px;
+            padding:14px 24px; 
+            display:flex; 
+            justify-content:center; 
+            align-items:center;
+            gap:16px; 
+            box-shadow:0 15px 50px rgba(0,0,0,0.9);
+            transition:opacity 0.6s cubic-bezier(0.4,0,0.2,1), 
+                       transform 0.6s cubic-bezier(0.4,0,0.2,1);
+            opacity:0; 
+            pointer-events:none;
+            visibility: hidden;
         }
-
-        #controls-bar.fade-out {
-            opacity: 0;
-            pointer-events: none;
-            transform: translate(-50%, -40%) scale(0.95);
+        #controls-bar.visible { 
+            opacity:1; 
+            pointer-events:auto;
+            visibility: visible;
+            transform:translate(-50%, -50%) scale(1);
         }
-
+        #controls-bar.fade-out { 
+            opacity:0; 
+            pointer-events:none;
+            visibility: hidden;
+            transform:translate(-50%, -50%) scale(0.9); 
+        }
         .control-btn {
-            border: none;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+            border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+            transition:all 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+            box-shadow:0 4px 12px rgba(0,0,0,0.4); border-radius:50%;
         }
-
-        .control-btn:active {
-            transform: scale(0.9);
-        }
-
+        .control-btn:active { transform:scale(0.88); }
         .btn-start {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background: #ff3b30;
-            color: white;
-            font-size: 16px;
+            width:48px; height:48px; background:#ff3b30; color:white; font-size:17px;
+            border:2px solid rgba(255,255,255,0.12);
         }
-
-        .btn-start.active {
-            background: #ff453a;
-            border: 3px solid white;
-            animation: recordGlow 1.5s infinite;
-        }
-
+        .btn-start.active { background:#ff453a; border:3px solid white; animation:recordGlow 1.5s infinite; }
         @keyframes recordGlow {
-            0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
-            70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+            0%{box-shadow:0 0 0 0 rgba(255,59,48,0.5)}
+            70%{box-shadow:0 0 0 18px rgba(255,59,48,0)}
+            100%{box-shadow:0 0 0 0 rgba(255,59,48,0)}
         }
-
-        .btn-emergency {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            background: #ff9500;
-            color: black;
-            font-size: 14px;
+        .btn-emergency { width:40px; height:40px; background:#ff9500; color:black; font-size:14px; }
+        .btn-stop { width:40px; height:40px; background:#3a3a3c; color:white; font-size:14px; }
+        .btn-stop:disabled { opacity:0.3; cursor:not-allowed; transform:none !important; }
+        .back-link { 
+            color:#0a84ff; 
+            text-decoration:none; 
+            font-size:10px; 
+            font-weight:600; 
+            display:flex; 
+            align-items:center; 
+            gap:3px;
+            padding:6px 8px;
+            border-radius:8px;
+            transition:background 0.2s;
         }
-
-        .btn-stop {
-            width: 38px;
-            height: 38px;
-            border-radius: 50%;
-            background: #3a3a3c;
-            color: white;
-            font-size: 14px;
+        .back-link:hover { background:rgba(10,132,255,0.1); }
+        .gps-status {
+            font-size:9px; 
+            color:#34c759; 
+            font-weight:600; 
+            display:flex; 
+            align-items:center; 
+            gap:4px;
+            padding:4px 8px;
+            border-radius:8px;
+            background:rgba(52,199,89,0.1);
         }
-
-        .btn-stop:disabled {
-            opacity: 0.3;
-            cursor: not-allowed;
-            transform: none !important;
-        }
-
-        .back-link {
-            color: #0a84ff;
-            text-decoration: none;
-            font-size: 11px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 4px;
-        }
-
+        
         #emergency-indicator {
+            position:absolute; top:30%; left:50%; transform:translate(-50%,-50%);
+            font-size:20px; font-weight:800; color:#ff3b30;
+            background:rgba(0,0,0,0.92); padding:12px 24px; border-radius:16px;
+            border:2px solid #ff3b30; box-shadow:0 0 40px rgba(255,59,48,0.4);
+            animation:emergencyPulse 0.6s infinite; display:none; pointer-events:none; z-index:999;
+        }
+        @keyframes emergencyPulse {
+            0%,100%{transform:translate(-50%,-50%) scale(1);opacity:1}
+            50%{transform:translate(-50%,-50%) scale(1.05);opacity:0.85}
+        }
+        .maplibregl-ctrl-attrib { display:none !important; }
+        .maplibregl-ctrl { display:none !important; }
+        #voice-guidance {
+            position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+            background:rgba(0,0,0,0.88); backdrop-filter:blur(16px);
+            padding:12px 20px; border-radius:16px;
+            border:1px solid rgba(99,102,241,0.3);
+            box-shadow:0 8px 40px rgba(0,0,0,0.8); z-index:1500;
+            text-align:center; pointer-events:none; display:none; max-width:85%;
+        }
+        #voice-guidance .direction-icon { font-size:28px; color:#6366f1; display:block; margin-bottom:3px; }
+        #voice-guidance .direction-text { font-size:16px; font-weight:700; color:white; }
+        #voice-guidance .direction-detail { font-size:11px; color:#94a3b8; margin-top:2px; }
+        #voice-guidance.show { display:block; animation:guidancePop 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+        @keyframes guidancePop {
+            0%{transform:translate(-50%,-50%) scale(0.8);opacity:0}
+            100%{transform:translate(-50%,-50%) scale(1);opacity:1}
+        }
+        .map-placeholder {
+            position:absolute; top:0; left:0; right:0; bottom:0;
+            display:flex; flex-direction:column; align-items:center; justify-content:center;
+            background:#080b16; z-index:0; color:#444;
+        }
+        .map-placeholder i { font-size:40px; color:#6366f1; margin-bottom:8px; }
+        .map-placeholder span { font-size:12px; }
+        .maplibregl-map { z-index:1; position:relative; }
+
+        #speed-camera-warning {
+            position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+            background:rgba(255,0,0,0.85); color:white;
+            padding:14px 24px; border-radius:14px; font-size:16px; font-weight:800;
+            border:2px solid white; box-shadow:0 0 50px rgba(255,0,0,0.6);
+            z-index:1500; display:none; pointer-events:none;
+            animation:cameraFlash 0.5s ease;
+        }
+        @keyframes cameraFlash {
+            0%{transform:translate(-50%,-50%) scale(0.5);opacity:0}
+            50%{transform:translate(-50%,-50%) scale(1.1)}
+            100%{transform:translate(-50%,-50%) scale(1);opacity:1}
+        }
+        #speed-camera-warning i { margin-right:8px; }
+        #speed-camera-warning .speed-val { color:#ffdd00; }
+
+        /* ===== SPEEDOMETER - ALWAYS VISIBLE ===== */
+        #speedometer-container {
             position: absolute;
-            top: 25%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 20px;
-            font-weight: 800;
-            color: #ff3b30;
-            background: rgba(0, 0, 0, 0.9);
-            padding: 10px 20px;
-            border-radius: 15px;
-            border: 2px solid #ff3b30;
-            box-shadow: 0 0 25px rgba(255,59,48,0.6);
-            animation: emergencyPulse 0.5s infinite;
-            display: none;
+            bottom: 55px;
+            right: 12px;
+            width: 120px;
+            height: 120px;
+            z-index: 20;
             pointer-events: none;
-            z-index: 999;
+            display: block !important;
+        }
+        #speedometer-container svg {
+            width: 100%;
+            height: 100%;
+            filter: drop-shadow(0 4px 20px rgba(0,0,0,0.9));
+        }
+        .speedo-bg {
+            fill: rgba(0, 0, 0, 0.85);
+            stroke: rgba(255,255,255,0.08);
+            stroke-width: 1.5;
+        }
+        .speedo-tick {
+            stroke: rgba(255,255,255,0.4);
+            stroke-width: 1.5;
+        }
+        .speedo-tick-major {
+            stroke: rgba(255,255,255,0.7);
+            stroke-width: 2.5;
+        }
+        .speedo-label {
+            fill: rgba(255,255,255,0.5);
+            font-size: 6px;
+            font-family: 'Segoe UI', sans-serif;
+            text-anchor: middle;
+        }
+        .speedo-needle {
+            stroke: #ff3b30;
+            stroke-width: 3;
+            stroke-linecap: round;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .speedo-needle-center {
+            fill: #ff3b30;
+            r: 4.5;
+        }
+        .speedo-needle-center-ring {
+            fill: none;
+            stroke: rgba(255,255,255,0.15);
+            stroke-width: 2;
+            r: 7.5;
+        }
+        .speedo-value {
+            fill: #00ff88;
+            font-size: 22px;
+            font-weight: 800;
+            font-family: 'Segoe UI', sans-serif;
+            text-anchor: middle;
+            letter-spacing: -0.5px;
+            transition: fill 0.3s;
+        }
+        .speedo-unit {
+            fill: rgba(255,255,255,0.4);
+            font-size: 8px;
+            font-family: 'Segoe UI', sans-serif;
+            text-anchor: middle;
+        }
+        .speedo-red-zone {
+            fill: rgba(255, 59, 48, 0.08);
+            stroke: rgba(255, 59, 48, 0.15);
+            stroke-width: 0.5;
+        }
+        @keyframes needlePulse {
+            0%, 100% { filter: drop-shadow(0 0 3px rgba(255,59,48,0.2)); }
+            50% { filter: drop-shadow(0 0 12px rgba(255,59,48,0.5)); }
+        }
+        .speedo-needle.pulse { animation: needlePulse 1s infinite; }
+        
+        @keyframes speedoPop {
+            0% { transform: scale(0.8); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .speedo-value.pop {
+            animation: speedoPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        
+        @media(max-width:400px) {
+            #speedometer-container { width: 100px; height: 100px; bottom: 48px; right: 8px; }
+            .speedo-value { font-size: 18px; }
+            .speedo-label { font-size: 5px; }
+            .speedo-unit { font-size: 7px; }
         }
 
-        @keyframes emergencyPulse {
-            0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
-            50% { transform: translate(-50%, -50%) scale(1.05); opacity: 0.8; }
+        /* Recording overlay */
+        #recording-overlay {
+            position: absolute;
+            top: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255,59,48,0.9);
+            padding: 3px 14px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 700;
+            color: white;
+            display: none;
+            z-index: 15;
+            letter-spacing: 1px;
+            box-shadow: 0 0 30px rgba(255,59,48,0.3);
+            border: 1px solid rgba(255,255,255,0.2);
         }
+        #recording-overlay.active {
+            display: block;
+            animation: recPulse 2s infinite;
+        }
+        @keyframes recPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+        #recording-overlay i { margin-right: 6px; }
+
+        /* Storage indicator */
+        #storage-indicator {
+            position: absolute;
+            bottom: 8px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.6);
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-size: 8px;
+            color: #94a3b8;
+            z-index: 10;
+            display: none;
+            backdrop-filter: blur(4px);
+            border: 1px solid rgba(255,255,255,0.04);
+        }
+        #storage-indicator.active { display: block; }
     </style>
 </head>
 <body>
-
     <div class="phone-frame">
         <div class="phone-notch"></div>
-        
         <div class="split-container">
-            <!-- Top Half: Camera Stream View -->
             <div id="video-container">
                 <video id="video" autoplay playsinline muted></video>
                 <canvas id="live-canvas"></canvas>
+                
+                <!-- Recording Overlay -->
+                <div id="recording-overlay"><i class="fas fa-circle"></i> RECORDING</div>
+                
+                <!-- Speedometer - ALWAYS VISIBLE -->
+                <div id="speedometer-container">
+                    <svg viewBox="0 0 200 200">
+                        <circle class="speedo-bg" cx="100" cy="100" r="88"/>
+                        <path class="speedo-red-zone" d="M 100 100 L 158 52 A 83 83 0 0 1 173 100 Z"/>
+                        <g id="ticks"></g>
+                        <g id="labels"></g>
+                        <line class="speedo-needle" id="needle" x1="100" y1="100" x2="100" y2="28" transform="rotate(-90,100,100)"/>
+                        <circle class="speedo-needle-center-ring" cx="100" cy="100"/>
+                        <circle class="speedo-needle-center" cx="100" cy="100"/>
+                        <text class="speedo-value" id="speedoValue" x="100" y="138">0</text>
+                        <text class="speedo-unit" x="100" y="150">km/h</text>
+                    </svg>
+                </div>
 
                 <div id="overlay">
                     <div class="app-status-bar">
-                        <div class="status-left">
-                            <span class="recording-dot" id="recordingDot"></span>
-                            <span id="recordingStatus" style="font-weight: 700; letter-spacing: 0.5px;">STANDBY</span>
-                        </div>
-                        <div class="status-right">
-                            <span id="connectionStatus"><i class="fas fa-circle" style="color: #ff3b30;"></i> Offline</span>
-                        </div>
+                        <div class="status-left"><span class="recording-dot" id="recordingDot"></span><span id="recordingStatus" style="font-weight:600;">STANDBY</span></div>
+                        <div class="status-right"><span id="connectionStatus"><i class="fas fa-circle" style="color:#ff3b30;font-size:8px;"></i> Offline</span></div>
                     </div>
-
-                    <div id="status-message">Initializing Camera...</div>
-                    <div id="time-display">00:00:00</div>
-
-                    <div id="voice-indicator">
-                        <i class="fas fa-microphone mic-active"></i> <span id="voiceHeardText">Voice Control Active (Say "SAVE")</span>
-                    </div>
-
-                    <div id="gps-display">
-                        Lat: Waiting...<br>Lng: Waiting...
-                    </div>
-
-                    <div id="speed-overlay-box">
-                        <div id="speed-display">0<small>km/h</small></div>
-                    </div>
+                    <div id="status-message">🚗 Ready</div>
+                    <div id="time-display">--:--:--</div>
+                    <div id="voice-indicator"><i class="fas fa-microphone mic-active"></i> <span id="voiceHeardText">Say "SAVE"</span></div>
+                    <div id="gps-display">Lat: --<br>Lng: --</div>
                 </div>
-
                 <div id="emergency-indicator">🚨 EMERGENCY SOS</div>
+                <div id="voice-guidance">
+                    <span class="direction-icon" id="guidanceIcon">➡️</span>
+                    <div class="direction-text" id="guidanceText">Turn left</div>
+                    <div class="direction-detail" id="guidanceDetail">in 300 meters</div>
+                </div>
+                <div id="speed-camera-warning">
+                    <i class="fas fa-camera"></i> SPEED CAMERA <span class="speed-val" id="cameraSpeed">60</span> km/h
+                </div>
+                <div id="storage-indicator"><i class="fas fa-hdd"></i> <span id="storageInfo">0 MB</span></div>
             </div>
-            
-            <!-- Bottom Half: Full Interactive Map -->
             <div id="map-container">
                 <div class="map-search-control">
                     <div class="search-row">
-                        <input type="text" id="destination-input" placeholder="Enter destination for directions..." oninput="handleSearchInputDebounced(event)">
+                        <input type="text" id="destination-input" placeholder="Search for a place or address..." oninput="handleSearchInputDebounced(event)">
                         <button id="directions-btn" onclick="calculateDirections()"><i class="fas fa-route"></i> GO</button>
                     </div>
                     <div id="autocomplete-dropdown"></div>
                 </div>
-
                 <div id="map"></div>
-
-                <!-- North Lock Toggle Button -->
-                <button id="north-lock-btn" onclick="toggleNorthLock()" title="Toggle North Lock">
+                <div class="map-placeholder" id="mapPlaceholder">
+                    <i class="fas fa-road"></i>
+                    <span>Loading 3D Map...</span>
+                </div>
+                <button id="heading-lock-btn" onclick="toggleHeadingLock()" title="Toggle Heading Lock">
                     <i class="fas fa-location-arrow"></i>
                 </button>
-
                 <div id="speed-limit-sign">60</div>
-                <div id="directions-overlay">
-                    <i class="fas fa-info-circle"></i> Routing: Proceeding to destination...
-                </div>
+                <div id="directions-overlay"><i class="fas fa-info-circle"></i> Ready</div>
             </div>
         </div>
-
-        <!-- Controls Bar -->
+        
+        <!-- Controls Bar - Middle of Screen - ONLY ON DOUBLE CLICK -->
         <div id="controls-bar">
             <a href="/" class="back-link"><i class="fas fa-arrow-left"></i> Exit</a>
-            <button class="control-btn btn-emergency" id="emergencyBtn" onclick="triggerEmergency()" title="Trigger SOS"><i class="fas fa-exclamation-triangle"></i></button>
-            <button class="control-btn btn-start" id="recordBtn" onclick="toggleRecording()" title="Toggle Recording"><i class="fas fa-video"></i></button>
-            <button class="control-btn btn-stop" id="stopBtn" disabled onclick="stopRecording()" title="Stop and Sync"><i class="fas fa-stop"></i></button>
-            <span style="font-size: 10px; color: #34c759; font-weight: 700;" id="gpsModeIndicator"><i class="fas fa-satellite"></i> GPS Ready</span>
+            <button class="control-btn btn-emergency" id="emergencyBtn" onclick="triggerEmergency()"><i class="fas fa-exclamation-triangle"></i></button>
+            <button class="control-btn btn-start" id="recordBtn" onclick="toggleRecording()"><i class="fas fa-video"></i></button>
+            <button class="control-btn btn-stop" id="stopBtn" disabled onclick="stopRecording()"><i class="fas fa-stop"></i></button>
+            <span class="gps-status"><i class="fas fa-satellite"></i> GPS</span>
         </div>
     </div>
 
     <script>
-        // State management
-        let isRecording = false;
-        let recordingId = null;
-        let ws = null;
-        let mediaStream = null;
-        let videoTrack = null;
-        let frameInterval = null;
-        let watchId = null;
-        let reconnectAttempts = 0;
-        const maxReconnectAttempts = 10;
-        
-        // Live YOLO detections from websocket stream
-        let liveYoloDetections = [];
-        let lastDetectionTime = 0;
-
-        // Media Recorder state
-        let mediaRecorder = null;
-        let recordedChunks = [];
-        let recExtension = 'mp4';
-
-        // GPS states
-        let currentLat = -1.286389;
-        let currentLng = 36.817223;
-        let currentSpeed = 0;
-        let lastGpsTime = null;
-        let lastLat = null;
-        let lastLng = null;
-
-        // Maplibre 3D Map states
-        let map = null;
-        let deviceMarker = null;
-        let travelCoords = [];
-
-        // Navigation states
-        let routeSteps = [];
-        let currentStepIndex = 0;
-
-        // Canvas & OSD
-        const liveCanvas = document.getElementById('live-canvas');
-        const osdCtx = liveCanvas.getContext('2d');
-        let osdInterval = null;
-
-        let currentPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
-        let speechRecognizer = null;
-        let sweepY = 100;
-        let sweepDirection = 2;
+        // ===== STATE =====
+        let isRecording = false, recordingId = null, ws = null, mediaStream = null;
+        let liveYoloDetections = [], lastDetectionTime = 0;
+        let mediaRecorder = null, recordedChunks = [], recExtension = 'mp4';
+        let currentLat = -1.286389, currentLng = 36.817223, currentSpeed = 0;
+        let currentHeading = 0;
+        let lastGpsTime = null, lastLat = null, lastLng = null;
+        let map = null, deviceMarker = null;
+        let routeSteps = [], currentStepIndex = 0, lastSpokenStepIndex = -1;
+        let guidanceTimeout = null, cameraWarningTimeout = null;
+        let headingLockActive = false, watchId = null;
+        let speedCameras = [], trafficLights = [];
+        let currentSpeedLimit = 60;
+        let mapReady = false;
+        let targetSpeed = 0;
+        let currentDisplaySpeed = 0;
+        let recordingStartTime = null;
+        let totalRecordedSize = 0;
+        let storageUpdateInterval = null;
+        let controlsVisible = false;
+        let controlsTimeout = null;
+        let routePoints = [];
         let searchTimeout = null;
 
-        // North Lock state
-        let northLockActive = false;
-        let northLockViewState = null; // Store view state when locking
+        // ===== DOM REFS =====
+        const liveCanvas = document.getElementById('live-canvas');
+        const osdCtx = liveCanvas.getContext('2d');
+        let osdInterval = null, frameInterval = null;
+        let currentPlate = localStorage.getItem('dashcam_plate') || 'ABC-1234';
+        let speechRecognizer = null;
+        let sweepY = 100, sweepDirection = 2;
 
-        // DOM bindings
         const video = document.getElementById('video');
         const recordBtn = document.getElementById('recordBtn');
         const stopBtn = document.getElementById('stopBtn');
-        const emergencyBtn = document.getElementById('emergencyBtn');
-        const speedDisplay = document.getElementById('speed-display');
         const gpsDisplay = document.getElementById('gps-display');
         const timeDisplay = document.getElementById('time-display');
         const recordingStatus = document.getElementById('recordingStatus');
@@ -693,1172 +605,1581 @@
         const speedLimitSign = document.getElementById('speed-limit-sign');
         const autocompleteDropdown = document.getElementById('autocomplete-dropdown');
         const destinationInput = document.getElementById('destination-input');
-        const northLockBtn = document.getElementById('north-lock-btn');
+        const headingLockBtn = document.getElementById('heading-lock-btn');
+        const mapPlaceholder = document.getElementById('mapPlaceholder');
+        const guidanceEl = document.getElementById('voice-guidance');
+        const guidanceIcon = document.getElementById('guidanceIcon');
+        const guidanceText = document.getElementById('guidanceText');
+        const guidanceDetail = document.getElementById('guidanceDetail');
+        const cameraWarning = document.getElementById('speed-camera-warning');
+        const cameraSpeed = document.getElementById('cameraSpeed');
+        const speedometerContainer = document.getElementById('speedometer-container');
+        const needle = document.getElementById('needle');
+        const speedoValue = document.getElementById('speedoValue');
+        const recordingOverlay = document.getElementById('recording-overlay');
+        const storageIndicator = document.getElementById('storage-indicator');
+        const storageInfo = document.getElementById('storageInfo');
+        const controlsBar = document.getElementById('controls-bar');
 
-        // Setup real-time clock
+        // ===== CONTROLS VISIBILITY - ONLY ON DOUBLE CLICK =====
+        function showControls() {
+            if (controlsTimeout) clearTimeout(controlsTimeout);
+            controlsBar.classList.add('visible');
+            controlsBar.classList.remove('fade-out');
+            controlsVisible = true;
+            controlsTimeout = setTimeout(() => {
+                hideControls();
+            }, 3000);
+        }
+
+        function hideControls() {
+            controlsBar.classList.remove('visible');
+            controlsBar.classList.add('fade-out');
+            controlsVisible = false;
+        }
+
+        function toggleControls() {
+            if (controlsVisible) {
+                hideControls();
+            } else {
+                showControls();
+            }
+        }
+
+        // ===== BUILD SPEEDOMETER =====
+        function buildSpeedometer() {
+            const ticksGroup = document.getElementById('ticks');
+            const labelsGroup = document.getElementById('labels');
+            
+            ticksGroup.innerHTML = '';
+            labelsGroup.innerHTML = '';
+            
+            for (let i = 0; i <= 220; i += 10) {
+                const angle = -90 + (i / 220) * 220;
+                const rad = (angle - 90) * Math.PI / 180;
+                const isMajor = i % 20 === 0;
+                const innerRadius = isMajor ? 72 : 76;
+                const outerRadius = isMajor ? 82 : 80;
+                
+                const x1 = 100 + innerRadius * Math.cos(rad);
+                const y1 = 100 + innerRadius * Math.sin(rad);
+                const x2 = 100 + outerRadius * Math.cos(rad);
+                const y2 = 100 + outerRadius * Math.sin(rad);
+                
+                const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+                line.setAttribute('x1', x1);
+                line.setAttribute('y1', y1);
+                line.setAttribute('x2', x2);
+                line.setAttribute('y2', y2);
+                line.setAttribute('class', isMajor ? 'speedo-tick-major' : 'speedo-tick');
+                ticksGroup.appendChild(line);
+                
+                if (isMajor && i > 0) {
+                    const labelAngle = (angle - 90) * Math.PI / 180;
+                    const labelRadius = 62;
+                    const lx = 100 + labelRadius * Math.cos(labelAngle);
+                    const ly = 100 + labelRadius * Math.sin(labelAngle);
+                    
+                    const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+                    text.setAttribute('x', lx);
+                    text.setAttribute('y', ly + 2);
+                    text.setAttribute('class', 'speedo-label');
+                    text.textContent = i;
+                    labelsGroup.appendChild(text);
+                }
+            }
+        }
+
+        // ===== UPDATE SPEEDOMETER WITH ANIMATION =====
+        function updateSpeedometer(speed) {
+            targetSpeed = Math.min(220, Math.max(0, speed));
+            const diff = targetSpeed - currentDisplaySpeed;
+            
+            let speedFactor = 0.15;
+            if (Math.abs(diff) > 50) speedFactor = 0.25;
+            else if (Math.abs(diff) > 20) speedFactor = 0.18;
+            
+            if (Math.abs(diff) > 0.5) {
+                currentDisplaySpeed += diff * speedFactor;
+            } else {
+                currentDisplaySpeed = targetSpeed;
+            }
+            
+            const displayVal = Math.round(currentDisplaySpeed);
+            const angle = -90 + (currentDisplaySpeed / 220) * 220;
+            
+            if (needle) {
+                needle.setAttribute('transform', `rotate(${angle},100,100)`);
+                if (currentDisplaySpeed > 160) {
+                    needle.classList.add('pulse');
+                } else {
+                    needle.classList.remove('pulse');
+                }
+            }
+            
+            if (speedoValue) {
+                const oldVal = speedoValue.textContent;
+                speedoValue.textContent = displayVal;
+                
+                if (Math.abs(displayVal - parseInt(oldVal)) > 5) {
+                    speedoValue.classList.remove('pop');
+                    void speedoValue.offsetWidth;
+                    speedoValue.classList.add('pop');
+                }
+                
+                if (displayVal > 160) {
+                    speedoValue.style.fill = '#ff3b30';
+                } else if (displayVal > 120) {
+                    speedoValue.style.fill = '#ff9500';
+                } else {
+                    speedoValue.style.fill = '#00ff88';
+                }
+            }
+        }
+
+        // ===== UPDATE STORAGE INFO =====
+        function updateStorageInfo() {
+            if (!isRecording || recordedChunks.length === 0) return;
+            const totalSize = recordedChunks.reduce((acc, chunk) => acc + chunk.size, 0);
+            const sizeMB = (totalSize / (1024 * 1024)).toFixed(1);
+            const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
+            const mins = Math.floor(duration / 60);
+            const secs = duration % 60;
+            storageInfo.textContent = `${sizeMB} MB • ${mins}m ${secs}s`;
+        }
+
+        // ===== TTS - KEPT FOR VOICE GUIDANCE =====
+        function speakGuidance(text) {
+            if (!window.speechSynthesis) return;
+            window.speechSynthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.85;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            utterance.lang = 'en-US';
+            const voices = window.speechSynthesis.getVoices();
+            const preferred = voices.find(v => v.lang === 'en-US' && v.name.includes('Google')) || 
+                             voices.find(v => v.lang === 'en-US') || 
+                             voices[0];
+            if (preferred) utterance.voice = preferred;
+            window.speechSynthesis.speak(utterance);
+        }
+
+        // ===== VOICE RECOGNITION - SILENT & STABLE =====
+        let voiceRecognitionActive = false;
+        let voiceRecognitionRetries = 0;
+        const maxVoiceRetries = 3;
+        let voiceRecognitionTimeout = null;
+        let isRestartingVoice = false;
+
+        function startVoiceRecognition() {
+            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!window.SpeechRecognition) {
+                voiceHeardText.textContent = '🔇 Voice unavailable';
+                return;
+            }
+
+            if (voiceRecognitionActive || isRestartingVoice) {
+                return;
+            }
+
+            try {
+                speechRecognizer = new window.SpeechRecognition();
+                speechRecognizer.continuous = false;
+                speechRecognizer.interimResults = false;
+                speechRecognizer.lang = 'en-US';
+                speechRecognizer.maxAlternatives = 1;
+                
+                if (voiceRecognitionTimeout) {
+                    clearTimeout(voiceRecognitionTimeout);
+                    voiceRecognitionTimeout = null;
+                }
+
+                speechRecognizer.onstart = function() {
+                    voiceRecognitionActive = true;
+                    voiceRecognitionRetries = 0;
+                    voiceHeardText.textContent = '🎤 Listening...';
+                };
+
+                speechRecognizer.onresult = function(event) {
+                    if (event.results && event.results.length > 0) {
+                        const result = event.results[0];
+                        if (result.isFinal) {
+                            const transcript = result[0].transcript.trim().toLowerCase();
+                            if (transcript) {
+                                voiceHeardText.textContent = `🗣️ "${transcript}"`;
+                                
+                                if (transcript.includes('save') || 
+                                    transcript.includes('sos') || 
+                                    transcript.includes('emergency') ||
+                                    transcript.includes('help')) {
+                                    triggerEmergency();
+                                    if (isRecording) stopRecording();
+                                }
+                                if (transcript.includes('stop') && isRecording) {
+                                    stopRecording();
+                                }
+                                if (transcript.includes('start') && !isRecording) {
+                                    toggleRecording();
+                                }
+                            }
+                        }
+                    }
+                    restartVoiceRecognition();
+                };
+
+                speechRecognizer.onerror = function(event) {
+                    console.log('Voice recognition error:', event.error);
+                    voiceRecognitionActive = false;
+                    
+                    if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+                        voiceHeardText.textContent = '🔇 Voice disabled';
+                        return;
+                    }
+                    
+                    voiceRecognitionRetries++;
+                    if (voiceRecognitionRetries < maxVoiceRetries) {
+                        const delay = Math.min(1000 * voiceRecognitionRetries, 3000);
+                        voiceRecognitionTimeout = setTimeout(() => {
+                            restartVoiceRecognition();
+                        }, delay);
+                    } else {
+                        voiceHeardText.textContent = '🔇 Voice standby';
+                        voiceRecognitionRetries = 0;
+                        voiceRecognitionTimeout = setTimeout(() => {
+                            restartVoiceRecognition();
+                        }, 10000);
+                    }
+                };
+
+                speechRecognizer.onend = function() {
+                    voiceRecognitionActive = false;
+                    if (isRecording) {
+                        restartVoiceRecognition();
+                    } else {
+                        voiceHeardText.textContent = '🎤 Say "SAVE"';
+                    }
+                };
+
+                speechRecognizer.start();
+                voiceRecognitionActive = true;
+                voiceHeardText.textContent = '🎤 Listening...';
+                
+                voiceRecognitionTimeout = setTimeout(() => {
+                    if (voiceRecognitionActive) {
+                        try {
+                            speechRecognizer.stop();
+                        } catch(e) {}
+                        voiceRecognitionActive = false;
+                        restartVoiceRecognition();
+                    }
+                }, 5000);
+
+            } catch (e) {
+                console.warn('Voice recognition start error:', e);
+                voiceRecognitionActive = false;
+                voiceHeardText.textContent = '🔇 Voice standby';
+                if (isRecording) {
+                    voiceRecognitionTimeout = setTimeout(() => {
+                        restartVoiceRecognition();
+                    }, 3000);
+                }
+            }
+        }
+
+        function restartVoiceRecognition() {
+            if (isRestartingVoice) return;
+            if (!isRecording) {
+                voiceRecognitionActive = false;
+                return;
+            }
+            
+            isRestartingVoice = true;
+            
+            try {
+                if (speechRecognizer) {
+                    speechRecognizer.abort();
+                    speechRecognizer = null;
+                }
+            } catch(e) {}
+            
+            if (voiceRecognitionTimeout) {
+                clearTimeout(voiceRecognitionTimeout);
+                voiceRecognitionTimeout = null;
+            }
+            
+            voiceRecognitionActive = false;
+            
+            setTimeout(() => {
+                isRestartingVoice = false;
+                if (isRecording) {
+                    startVoiceRecognition();
+                }
+            }, 500);
+        }
+
+        function stopVoiceRecognition() {
+            isRestartingVoice = false;
+            voiceRecognitionActive = false;
+            
+            if (voiceRecognitionTimeout) {
+                clearTimeout(voiceRecognitionTimeout);
+                voiceRecognitionTimeout = null;
+            }
+            
+            try {
+                if (speechRecognizer) {
+                    speechRecognizer.abort();
+                    speechRecognizer = null;
+                }
+            } catch(e) {}
+            
+            voiceHeardText.textContent = '🔇 Voice off';
+        }
+
+        // ===== TIME =====
         function updateTime() {
             const now = new Date();
-            timeDisplay.textContent = now.toLocaleTimeString();
+            timeDisplay.textContent = now.toLocaleTimeString('en-US', { hour12: false });
         }
-        setInterval(updateTime, 1000);
-        updateTime();
+        setInterval(updateTime, 1000); updateTime();
 
-        // 1. Initialize Interactive Maplibre 3D Map on Bottom Split
-        function initLeafletMap() {
+        // ===== GENERATE POIS =====
+        function generatePOIs() {
+            speedCameras = [];
+            trafficLights = [];
+            const positions = [
+                { lng: -0.0025, lat: -0.0015, speed: 50 },
+                { lng: 0.0025, lat: 0.0015, speed: 60 },
+                { lng: -0.0015, lat: 0.0025, speed: 40 },
+                { lng: 0.0015, lat: -0.0025, speed: 50 },
+                { lng: -0.003, lat: 0.000, speed: 70 },
+                { lng: 0.003, lat: 0.000, speed: 60 },
+            ];
+            positions.forEach((p, i) => {
+                speedCameras.push({
+                    lng: currentLng + p.lng,
+                    lat: currentLat + p.lat,
+                    speed: p.speed,
+                    id: i
+                });
+                if (i % 2 === 0) {
+                    trafficLights.push({
+                        lng: currentLng + p.lng + 0.0005,
+                        lat: currentLat + p.lat + 0.0005,
+                        state: ['green', 'yellow', 'red'][i % 3]
+                    });
+                }
+            });
+        }
+
+        // ===== MAP INIT =====
+        function initMap() {
             try {
-                // Free, open-source custom style using CartoDB Dark Raster layer with support for 3D tilt & rotation
-                const maplibreStyle = {
+                const mapStyle = {
                     "version": 8,
                     "sources": {
-                        "cartodb-dark": {
+                        "osm": {
                             "type": "raster",
                             "tiles": [
-                                "https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                                "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                                "https://c.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png",
-                                "https://d.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png"
+                                "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
                             ],
                             "tileSize": 256,
-                            "attribution": "© OpenStreetMap, © CartoDB"
+                            "attribution": "© OpenStreetMap"
                         }
                     },
                     "layers": [
                         {
-                            "id": "cartodb-dark-layer",
+                            "id": "osm-layer",
                             "type": "raster",
-                            "source": "cartodb-dark",
+                            "source": "osm",
                             "minzoom": 0,
-                            "maxzoom": 20
+                            "maxzoom": 19
                         }
                     ]
                 };
 
                 map = new maplibregl.Map({
                     container: 'map',
-                    style: maplibreStyle,
+                    style: mapStyle,
                     center: [currentLng, currentLat],
-                    zoom: 15,
-                    pitch: 65, // Maximum 3D tilted cockpit view perspective
+                    zoom: 17,
+                    pitch: 65,
                     bearing: 0,
-                    attributionControl: false
-        // 1. Initialize Leaflet Map
-        function initLeafletMap() {
-            try {
-                map = L.map('map', { 
-                    zoomControl: false,
-                    // Disable rotation by default (standard Leaflet doesn't support rotation)
-                }).setView([currentLat, currentLng], 15);
-                
-                L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-                    attribution: '© OpenStreetMap, © CartoDB'
-                }).addTo(map);
-
-                L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-                const icon = L.divIcon({
-                    className: 'custom-icon',
-                    html: '<div style="background: #00ff88; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px #00ff88;"></div>',
-                    iconSize: [14, 14],
-                    iconAnchor: [7, 7]
+                    antialias: true,
+                    attributionControl: false,
+                    fadeDuration: 0
                 });
 
-                // Set up device marker
-                const el = document.createElement('div');
-                el.className = 'device-pulse';
-                el.style.background = '#00ff88';
-                el.style.width = '16px';
-                el.style.height = '16px';
-                el.style.borderRadius = '50%';
-                el.style.border = '3px solid white';
-                el.style.boxShadow = '0 0 15px #00ff88';
+                mapPlaceholder.style.display = 'none';
 
-                deviceMarker = new maplibregl.Marker({ element: el })
-                    .setLngLat([currentLng, currentLat])
-                    .addTo(map);
-
-                // Add route layers when style is loaded
                 map.on('load', () => {
-                    // Pre-create route sources & layers
+                    mapReady = true;
+                    
+                    generatePOIs();
+                    addSpeedCameras();
+                    addTrafficLights();
+
                     map.addSource('route', {
-                        'type': 'geojson',
-                        'data': {
-                            'type': 'Feature',
-                            'geometry': { 'type': 'LineString', 'coordinates': [] }
+                        type: 'geojson',
+                        data: { type: 'Feature', geometry: { type: 'LineString', coordinates: [] } }
+                    });
+
+                    map.addLayer({
+                        id: 'route-glow',
+                        type: 'line',
+                        source: 'route',
+                        paint: {
+                            'line-color': '#3b82f6',
+                            'line-width': 20,
+                            'line-opacity': 0.12,
+                            'line-blur': 14
                         }
                     });
 
-                travelPathPolyline = L.polyline([], { color: '#00ff88', weight: 4, opacity: 0.8 }).addTo(map);
-
                     map.addLayer({
-                        'id': 'route-bg',
-                        'type': 'line',
-                        'source': 'route',
-                        'layout': { 'line-join': 'round', 'line-cap': 'round' },
-                        'paint': {
+                        id: 'route-bg',
+                        type: 'line',
+                        source: 'route',
+                        paint: {
                             'line-color': '#1d4ed8',
-                            'line-width': 10,
+                            'line-width': 8,
                             'line-opacity': 0.8
                         }
                     });
 
                     map.addLayer({
-                        'id': 'route-fg',
-                        'type': 'line',
-                        'source': 'route',
-                        'layout': { 'line-join': 'round', 'line-cap': 'round' },
-                        'paint': {
+                        id: 'route-fg',
+                        type: 'line',
+                        source: 'route',
+                        paint: {
                             'line-color': '#3b82f6',
-                            'line-width': 6,
-                            'line-opacity': 1.0
+                            'line-width': 3,
+                            'line-opacity': 1
                         }
                     });
+
+                    map.setFog({
+                        'range': [0.8, 4],
+                        'color': '#0a0f1a',
+                        'horizon-blend': 0.3
+                    });
+
+                    statusMessage.textContent = '🚗 3D Map Ready';
                 });
 
-                console.log('Maplibre 3D Map successfully loaded.');
-            } catch (e) {
-                console.error('Error initializing Maplibre map:', e);
+                const el = document.createElement('div');
+                el.style.cssText = 'position:relative;width:24px;height:24px;';
+                
+                const dot = document.createElement('div');
+                dot.style.cssText = 'position:absolute;top:4px;left:4px;width:16px;height:16px;background:#00ff88;border-radius:50%;border:2.5px solid white;box-shadow:0 0 25px rgba(0,255,136,0.4);z-index:2;';
+                el.appendChild(dot);
+                
+                const arrow = document.createElement('div');
+                arrow.id = 'directionArrow';
+                arrow.style.cssText = 'position:absolute;top:-6px;left:7px;width:10px;height:10px;border-left:3px solid #00ff88;border-top:3px solid #00ff88;transform:rotate(45deg);z-index:1;transition:transform 0.3s;';
+                el.appendChild(arrow);
+                
+                const ring = document.createElement('div');
+                ring.style.cssText = 'position:absolute;top:-6px;left:-6px;width:36px;height:36px;border-radius:50%;border:2px solid rgba(0,255,136,0.15);animation:pulse 2s infinite;z-index:0;';
+                el.appendChild(ring);
+
+                deviceMarker = new maplibregl.Marker({ element: el }).setLngLat([currentLng, currentLat]).addTo(map);
+
+                console.log('🚗 Map initialized');
+            } catch(e) {
+                console.error('Map init error:', e);
+                statusMessage.textContent = 'Retrying map...';
+                setTimeout(initMap, 2000);
             }
         }
 
-        // North Lock Toggle Function - Fixed without setBearing
-        function toggleNorthLock() {
-            northLockActive = !northLockActive;
+        // ===== UPDATE MAP POSITION =====
+        function updateMapPosition(lat, lng, heading) {
+            if (!map || !deviceMarker || !mapReady) return;
             
-            if (northLockActive) {
-                // Activate North Lock
-                northLockBtn.classList.add('active');
-                northLockBtn.innerHTML = '<i class="fas fa-location-arrow" style="transform: rotate(45deg);"></i>';
+            deviceMarker.setLngLat([lng, lat]);
+            
+            const arrow = document.getElementById('directionArrow');
+            if (arrow && heading !== null && heading !== undefined) {
+                arrow.style.transform = `rotate(${heading + 45}deg)`;
+            }
+            
+            const options = {
+                center: [lng, lat],
+                duration: 800,
+                easing: function(t) { return t; }
+            };
+            
+            if (!headingLockActive && heading !== null && heading !== undefined) {
+                options.bearing = heading;
+                options.pitch = 65;
+            } else if (headingLockActive) {
+                options.bearing = 0;
+                options.pitch = 65;
+            }
+            
+            map.easeTo(options);
+        }
+
+        // ===== ADD SPEED CAMERAS =====
+        function addSpeedCameras() {
+            if (!map) return;
+            const cameraFeatures = speedCameras.map(c => ({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [c.lng, c.lat] },
+                properties: { type: 'speed_camera', speed: c.speed, label: `📷 ${c.speed}` }
+            }));
+            
+            try {
+                map.addSource('cameras', { 
+                    type: 'geojson', 
+                    data: { type: 'FeatureCollection', features: cameraFeatures } 
+                });
                 
-                // Store current view state
-                northLockViewState = {
-                    center: map.getCenter(),
-                    zoom: map.getZoom()
-                };
+                map.addLayer({
+                    id: 'cameras',
+                    type: 'symbol',
+                    source: 'cameras',
+                    layout: {
+                        'icon-image': 'marker-15',
+                        'icon-size': 0.5,
+                        'text-field': ['get', 'label'],
+                        'text-size': 8,
+                        'text-offset': [0, 1.2],
+                        'text-anchor': 'top'
+                    },
+                    paint: { 
+                        'text-color': '#ff6b6b', 
+                        'text-halo-color': '#000', 
+                        'text-halo-width': 2 
+                    }
+                });
+            } catch(e) {}
+        }
+
+        // ===== ADD TRAFFIC LIGHTS =====
+        function addTrafficLights() {
+            if (!map) return;
+            const lightFeatures = trafficLights.map(l => ({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [l.lng, l.lat] },
+                properties: { type: 'traffic_light', state: l.state }
+            }));
+            
+            try {
+                map.addSource('lights', { 
+                    type: 'geojson', 
+                    data: { type: 'FeatureCollection', features: lightFeatures } 
+                });
                 
-                // Disable map interactions that could change orientation
-                if (map.dragging) map.dragging.disable();
-                if (map.touchZoom) map.touchZoom.disable();
-                if (map.doubleClickZoom) map.doubleClickZoom.disable();
-                if (map.scrollWheelZoom) map.scrollWheelZoom.disable();
-                
-                // Always center on current location with north orientation
-                map.setView([currentLat, currentLng], map.getZoom(), { animate: true });
-                
-                statusMessage.textContent = 'North Lock ON';
+                map.addLayer({
+                    id: 'lights',
+                    type: 'circle',
+                    source: 'lights',
+                    paint: {
+                        'circle-radius': 6,
+                        'circle-color': ['match', ['get', 'state'], 
+                            'green', '#00ff88', 
+                            'yellow', '#ffdd00', 
+                            'red', '#ff3b30', 
+                            '#666'
+                        ],
+                        'circle-stroke-width': 2,
+                        'circle-stroke-color': 'rgba(255,255,255,0.5)',
+                        'circle-opacity': 0.9
+                    }
+                });
+            } catch(e) {}
+        }
+
+        // ===== HEADING LOCK =====
+        function toggleHeadingLock() {
+            headingLockActive = !headingLockActive;
+            if (headingLockActive) {
+                headingLockBtn.classList.add('active');
+                headingLockBtn.innerHTML = '<i class="fas fa-location-arrow" style="transform:rotate(45deg);"></i>';
+                statusMessage.textContent = '🔒 North Lock ON';
+                if (map) map.easeTo({ bearing: 0, pitch: 65, duration: 800 });
             } else {
-                // Deactivate North Lock
-                northLockBtn.classList.remove('active');
-                northLockBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
-                
-                // Re-enable map interactions
-                if (map.dragging) map.dragging.enable();
-                if (map.touchZoom) map.touchZoom.enable();
-                if (map.doubleClickZoom) map.doubleClickZoom.enable();
-                if (map.scrollWheelZoom) map.scrollWheelZoom.enable();
-                
-                // Restore previous view if available
-                if (northLockViewState) {
-                    map.setView(northLockViewState.center, northLockViewState.zoom, { animate: true });
-                    northLockViewState = null;
-                }
-                
-                statusMessage.textContent = 'North Lock OFF';
+                headingLockBtn.classList.remove('active');
+                headingLockBtn.innerHTML = '<i class="fas fa-location-arrow"></i>';
+                statusMessage.textContent = '🔄 360° Heading ON';
             }
+            setTimeout(() => { statusMessage.textContent = isRecording ? '🔴 Recording' : '✅ Ready'; }, 1500);
+        }
+
+        // ===== GUIDANCE UI WITH VOICE =====
+        function showGuidance(icon, text, detail) {
+            guidanceIcon.textContent = icon;
+            guidanceText.textContent = text;
+            guidanceDetail.textContent = detail;
+            guidanceEl.classList.add('show');
+            if (guidanceTimeout) clearTimeout(guidanceTimeout);
+            guidanceTimeout = setTimeout(() => guidanceEl.classList.remove('show'), 5000);
+        }
+
+        function showSpeedCamera(speed) {
+            cameraSpeed.textContent = speed;
+            cameraWarning.style.display = 'block';
+            if (cameraWarningTimeout) clearTimeout(cameraWarningTimeout);
+            cameraWarningTimeout = setTimeout(() => {
+                cameraWarning.style.display = 'none';
+            }, 3000);
+            speakGuidance(`Speed camera ahead, limit ${speed} kilometers per hour`);
+        }
+
+        function getTurnIcon(modifier) {
+            if (!modifier) return '⬆️';
+            const m = modifier.toLowerCase();
+            if (m.includes('left') && m.includes('sharp')) return '↰';
+            if (m.includes('left')) return '⬅️';
+            if (m.includes('right') && m.includes('sharp')) return '↱';
+            if (m.includes('right')) return '➡️';
+            if (m.includes('straight') || m.includes('ahead')) return '⬆️';
+            if (m.includes('slight left')) return '↖️';
+            if (m.includes('slight right')) return '↗️';
+            if (m.includes('u-turn') || m.includes('uturn')) return '↩️';
+            return '⬆️';
+        }
+
+        function getTurnText(modifier) {
+            if (!modifier) return 'Proceed straight';
+            const m = modifier.toLowerCase();
+            if (m.includes('left') && m.includes('sharp')) return 'Sharp left';
+            if (m.includes('left')) return 'Turn left';
+            if (m.includes('right') && m.includes('sharp')) return 'Sharp right';
+            if (m.includes('right')) return 'Turn right';
+            if (m.includes('straight') || m.includes('ahead')) return 'Go straight';
+            if (m.includes('slight left')) return 'Slight left';
+            if (m.includes('slight right')) return 'Slight right';
+            if (m.includes('u-turn') || m.includes('uturn')) return 'Make U-turn';
+            return 'Proceed';
+        }
+
+        function speakTurnInstruction(step, distance) {
+            if (!step || !step.maneuver) return;
+            const modifier = step.maneuver.modifier || 'straight';
+            const turnText = getTurnText(modifier);
+            const roadName = step.name || 'the road';
+            let distText = '';
+            if (distance > 0) {
+                if (distance < 50) distText = 'now';
+                else if (distance < 100) distText = 'in about 50 meters';
+                else if (distance < 200) distText = 'in about 100 meters';
+                else if (distance < 400) distText = 'in about 300 meters';
+                else if (distance < 700) distText = 'in about 500 meters';
+                else distText = `in ${Math.round(distance)} meters`;
+            }
+            const fullText = `${turnText} ${distText} onto ${roadName}`;
+            speakGuidance(fullText);
+            const icon = getTurnIcon(modifier);
+            showGuidance(icon, turnText, distText ? ` ${distText} onto ${roadName}` : `onto ${roadName}`);
+        }
+
+        // ===== SMART SEARCH / AUTOCOMPLETE =====
+        let currentSearchQuery = '';
+        let isSearching = false;
+
+        function handleSearchInputDebounced(e) {
+            const q = e.target.value.trim();
+            currentSearchQuery = q;
             
-            setTimeout(() => {
-                statusMessage.textContent = isRecording ? 'Recording live...' : 'Ready';
-            }, 1500);
-        }
-
-        // Reset map view (kept for compatibility)
-        function resetMapView() {
-            if (map && deviceMarker) {
-                map.setView([currentLat, currentLng], 15, { animate: true });
-                const btn = document.getElementById('north-lock-btn');
-                btn.style.transform = 'rotate(360deg) scale(0.9)';
-                setTimeout(() => {
-                    btn.style.transform = 'rotate(0deg) scale(1)';
-                }, 400);
-            }
-        }
-
-        // Debounce input for autocomplete
-        function handleSearchInputDebounced(event) {
-            const query = event.target.value.trim();
             if (searchTimeout) clearTimeout(searchTimeout);
-
-            if (!query || query.length < 3) {
+            
+            if (q.length < 2) {
                 autocompleteDropdown.style.display = 'none';
                 return;
             }
-
+            
             searchTimeout = setTimeout(() => {
-                fetchAutocompleteSuggestions(query);
-            }, 400);
+                fetchSmartSuggestions(q);
+            }, 300);
         }
 
-        // Fetch places from Nominatim
-        async function fetchAutocompleteSuggestions(query) {
-            try {
-                const url = `/api/proxy/geocode/?q=${encodeURIComponent(query)}&limit=5&viewbox=${currentLng-0.5},${currentLat+0.5},${currentLng+0.5},${currentLat-0.5}`;
-                const res = await fetch(url);
-                const suggestions = await res.json();
+        async function fetchSmartSuggestions(q) {
+            if (isSearching) return;
+            isSearching = true;
 
-                if (!suggestions || suggestions.length === 0) {
-                    autocompleteDropdown.style.display = 'none';
+            try {
+                // Use Nominatim with country bias for Kenya
+                // This gives more relevant results for Kenyan locations
+                const url = `/api/proxy/geocode/?q=${encodeURIComponent(q)}&limit=8&viewbox=${currentLng-0.5},${currentLat+0.5},${currentLng+0.5},${currentLat-0.5}&countrycodes=ke`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                if (!data || data.length === 0) {
+                    autocompleteDropdown.innerHTML = `
+                        <div class="suggestion-item" style="justify-content:center;color:#666;padding:12px;">
+                            <span>No results found for "${q}"</span>
+                        </div>
+                    `;
+                    autocompleteDropdown.style.display = 'block';
+                    isSearching = false;
                     return;
                 }
 
+                // Process and display results with categories
                 autocompleteDropdown.innerHTML = '';
-                suggestions.forEach(item => {
+                data.forEach(item => {
                     const lat = parseFloat(item.lat);
                     const lon = parseFloat(item.lon);
-                    const distance = getHaversineDistance(currentLat, currentLng, lat, lon);
+                    const dist = getHaversineDistance(currentLat, currentLng, lat, lon);
+                    
+                    // Determine place type
+                    let placeType = '📍';
+                    let typeLabel = '';
+                    if (item.type) {
+                        const typeMap = {
+                            'building': '🏢 Building',
+                            'house': '🏠 House',
+                            'shop': '🛒 Shop',
+                            'restaurant': '🍽️ Restaurant',
+                            'cafe': '☕ Cafe',
+                            'hotel': '🏨 Hotel',
+                            'school': '🏫 School',
+                            'hospital': '🏥 Hospital',
+                            'church': '⛪ Church',
+                            'mosque': '🕌 Mosque',
+                            'park': '🌳 Park',
+                            'road': '🛣️ Road',
+                            'street': '🚦 Street',
+                            'suburb': '🏘️ Suburb',
+                            'village': '🏡 Village',
+                            'town': '🏙️ Town',
+                            'city': '🌆 City',
+                            'county': '🏛️ County',
+                            'state': '🏛️ State'
+                        };
+                        typeLabel = typeMap[item.type] || item.type;
+                    }
+                    
+                    // Get short name
+                    const displayName = item.display_name || '';
+                    const parts = displayName.split(',');
+                    const name = parts[0] || displayName;
+                    const address = parts.slice(1, 4).join(',').trim();
 
                     const div = document.createElement('div');
                     div.className = 'suggestion-item';
-                    const displayName = item.display_name.split(',').slice(0, 3).join(', ');
-
                     div.innerHTML = `
-                        <span>${displayName}</span>
-                        <span class="dist">${distance.toFixed(1)} km</span>
+                        <div class="main">
+                            <span class="name">${name}</span>
+                            <span class="address">${address || displayName}</span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:6px;">
+                            ${typeLabel ? `<span class="type">${typeLabel}</span>` : ''}
+                            <span class="dist">${dist.toFixed(1)} km</span>
+                        </div>
                     `;
 
                     div.onclick = () => {
-                        destinationInput.value = item.display_name;
+                        destinationInput.value = displayName;
                         autocompleteDropdown.style.display = 'none';
-                        calculateDirections();
+                        calculateDirectionsTo(lat, lon, displayName);
                     };
 
                     autocompleteDropdown.appendChild(div);
                 });
 
+                // Add "Go to current location" option
+                const currentLocDiv = document.createElement('div');
+                currentLocDiv.className = 'suggestion-item';
+                currentLocDiv.style.borderTop = '1px solid rgba(255,255,255,0.05)';
+                currentLocDiv.style.marginTop = '4px';
+                currentLocDiv.innerHTML = `
+                    <div class="main">
+                        <span class="name" style="color:#34c759;">📍 Current Location</span>
+                        <span class="address">Go to your current position</span>
+                    </div>
+                    <span class="type" style="background:rgba(52,199,89,0.15);color:#34c759;">GPS</span>
+                `;
+                currentLocDiv.onclick = () => {
+                    destinationInput.value = 'Current Location';
+                    autocompleteDropdown.style.display = 'none';
+                    // Use current location
+                    calculateDirectionsTo(currentLat, currentLng, 'Current Location');
+                };
+                autocompleteDropdown.appendChild(currentLocDiv);
+
                 autocompleteDropdown.style.display = 'block';
 
             } catch (error) {
-                console.error('Failed to retrieve search suggestions:', error);
+                console.error('Search error:', error);
+                autocompleteDropdown.innerHTML = `
+                    <div class="suggestion-item" style="justify-content:center;color:#f87171;padding:12px;">
+                        <span>⚠️ Search error. Please try again.</span>
+                    </div>
+                `;
+                autocompleteDropdown.style.display = 'block';
             }
+
+            isSearching = false;
+        }
+
+        // ===== CALCULATE DIRECTIONS =====
+        async function calculateDirections() {
+            const q = destinationInput.value.trim();
+            if (!q) return;
+            await calculateDirectionsTo(null, null, q);
+        }
+
+        async function calculateDirectionsTo(lat, lng, name) {
+            autocompleteDropdown.style.display = 'none';
+            directionsOverlay.style.display = 'block';
+            directionsOverlay.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Finding route...`;
+
+            try {
+                let destLat, destLng, destName;
+
+                if (lat && lng) {
+                    destLat = lat;
+                    destLng = lng;
+                    destName = name;
+                } else {
+                    const geoRes = await fetch(`/api/proxy/geocode/?q=${encodeURIComponent(name)}&limit=1&countrycodes=ke`);
+                    const geoData = await geoRes.json();
+                    if (!geoData || !geoData.length) {
+                        directionsOverlay.innerHTML = '❌ Location not found';
+                        return;
+                    }
+                    destLat = parseFloat(geoData[0].lat);
+                    destLng = parseFloat(geoData[0].lon);
+                    destName = geoData[0].display_name || name;
+                }
+
+                const osrm = await fetch(`/api/proxy/route/?coordinates=${currentLng},${currentLat};${destLng},${destLat}&overview=full&geometries=geojson&steps=true`);
+                const routeData = await osrm.json();
+                
+                if (!routeData.routes || !routeData.routes.length) {
+                    directionsOverlay.innerHTML = '🚫 No route found';
+                    return;
+                }
+
+                const route = routeData.routes[0];
+                const routeGeo = route.geometry;
+                routeSteps = route.legs[0].steps || [];
+                currentStepIndex = 0;
+                lastSpokenStepIndex = -1;
+                
+                const distance = (route.distance / 1000).toFixed(1);
+                const duration = (route.duration / 60).toFixed(0);
+                
+                // Set speed limit based on route
+                const avgSpeed = route.duration > 0 ? (route.distance / route.duration) * 3.6 : 50;
+                currentSpeedLimit = Math.min(120, Math.max(30, Math.round(avgSpeed * 1.1 / 5) * 5));
+                speedLimitSign.textContent = currentSpeedLimit;
+                
+                if (routeSteps.length > 0) {
+                    const firstStep = routeSteps[0];
+                    if (firstStep.maneuver) {
+                        const dist = firstStep.distance || 0;
+                        speakTurnInstruction(firstStep, dist);
+                    }
+                }
+                
+                if (map && map.getSource('route')) {
+                    map.getSource('route').setData({ type:'Feature', geometry:routeGeo });
+                }
+                
+                const coords = routeGeo.coordinates;
+                if (coords && coords.length && map) {
+                    const bounds = coords.reduce((b, coord) => b.extend(coord), new maplibregl.LngLatBounds(coords[0], coords[0]));
+                    map.fitBounds(bounds, { padding: 40, duration: 1200, pitch: 60 });
+                }
+                
+                // Add destination marker
+                const destEl = document.createElement('div');
+                destEl.style.cssText = 'background:#ff3b30;width:14px;height:14px;border-radius:50%;border:2.5px solid white;box-shadow:0 0 25px rgba(255,59,48,0.5);';
+                if (map) new maplibregl.Marker({ element: destEl }).setLngLat([destLng, destLat]).addTo(map);
+                
+                directionsOverlay.innerHTML = `📍 ${distance} km • ${duration} min to ${destName.split(',').slice(0,2).join(',')}`;
+                setTimeout(() => {
+                    if (routeSteps.length) {
+                        const step = routeSteps[0];
+                        directionsOverlay.innerHTML = `<i class="fas ${getDirectionIcon(step.maneuver.modifier)}" style="color:#6366f1;margin-right:6px;"></i> ${getReadableInstruction(step)}`;
+                    }
+                }, 3000);
+
+            } catch(e) {
+                console.error('Routing error:', e);
+                directionsOverlay.innerHTML = '⚠️ Routing error - try again';
+            }
+        }
+
+        // ===== GPS WITH HEADING TRACKING =====
+        function startLocationTracking() {
+            if (watchId) navigator.geolocation.clearWatch(watchId);
+            lastGpsTime = null; lastLat = null; lastLng = null;
+            const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 };
+
+            function successCallback(position) {
+                const { latitude, longitude, speed, heading, accuracy } = position.coords;
+                let speedKmh = 0;
+                const now = Date.now();
+                
+                if (speed !== null && speed !== undefined) {
+                    speedKmh = speed * 3.6;
+                } else if (lastLat !== null && lastLng !== null && lastGpsTime) {
+                    const seconds = (now - lastGpsTime) / 1000;
+                    if (seconds > 0.5) {
+                        const R = 6371;
+                        const dLat = (latitude - lastLat) * Math.PI / 180;
+                        const dLng = (longitude - lastLng) * Math.PI / 180;
+                        const a = Math.sin(dLat/2)**2 + Math.cos(lastLat*Math.PI/180)*Math.cos(latitude*Math.PI/180)*Math.sin(dLng/2)**2;
+                        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+                        speedKmh = ((R * c) / seconds) * 3600;
+                        if (speedKmh < 1.0) speedKmh = 0;
+                    }
+                }
+                
+                let deviceHeading = heading;
+                if (deviceHeading === null || deviceHeading === undefined) {
+                    if (lastLat !== null && lastLng !== null) {
+                        const dy = latitude - lastLat;
+                        const dx = longitude - lastLng;
+                        if (Math.abs(dx) > 0.000001 || Math.abs(dy) > 0.000001) {
+                            deviceHeading = Math.atan2(dx, dy) * (180 / Math.PI);
+                            if (deviceHeading < 0) deviceHeading += 360;
+                        }
+                    }
+                }
+                
+                currentLat = latitude;
+                currentLng = longitude;
+                currentSpeed = speedKmh;
+                if (deviceHeading !== null && deviceHeading !== undefined) {
+                    currentHeading = deviceHeading;
+                }
+                
+                lastLat = latitude;
+                lastLng = longitude;
+                lastGpsTime = now;
+                
+                updateSpeedometer(speedKmh);
+                gpsDisplay.innerHTML = `Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
+                updateMapPosition(latitude, longitude, currentHeading);
+
+                // Store route points
+                routePoints.push([latitude, longitude]);
+                if (map && map.getSource('route')) {
+                    const coords = routePoints.map(p => [p[1], p[0]]);
+                    map.getSource('route').setData({
+                        type: 'Feature',
+                        geometry: { type: 'LineString', coordinates: coords }
+                    });
+                }
+
+                speedCameras.forEach(cam => {
+                    const dist = getHaversineDistance(latitude, longitude, cam.lat, cam.lng) * 1000;
+                    if (dist < 80 && speedKmh > cam.speed) {
+                        showSpeedCamera(cam.speed);
+                    }
+                });
+
+                if (routeSteps && routeSteps.length > 0 && currentStepIndex < routeSteps.length) {
+                    const nextStep = routeSteps[currentStepIndex];
+                    if (nextStep && nextStep.maneuver && nextStep.maneuver.location) {
+                        const stepLon = nextStep.maneuver.location[0];
+                        const stepLat = nextStep.maneuver.location[1];
+                        const distToStep = getHaversineDistance(latitude, longitude, stepLat, stepLon) * 1000;
+                        
+                        if (distToStep < 300 && distToStep > 10 && currentStepIndex !== lastSpokenStepIndex) {
+                            speakTurnInstruction(nextStep, distToStep);
+                            lastSpokenStepIndex = currentStepIndex;
+                        }
+                        
+                        if (distToStep < 30 && currentStepIndex < routeSteps.length - 1) {
+                            currentStepIndex++;
+                            if (currentStepIndex < routeSteps.length) lastSpokenStepIndex = -1;
+                        }
+                    }
+                    
+                    const activeStep = routeSteps[currentStepIndex] || routeSteps[routeSteps.length - 1];
+                    if (activeStep) {
+                        const iconClass = getDirectionIcon(activeStep.maneuver ? activeStep.maneuver.modifier : null);
+                        const instructionText = getReadableInstruction(activeStep);
+                        directionsOverlay.innerHTML = `<i class="fas ${iconClass}" style="color:#6366f1;margin-right:6px;"></i> ${instructionText}`;
+                        directionsOverlay.style.display = 'block';
+                    }
+                }
+                sendGPSData(latitude, longitude, speedKmh, currentHeading);
+            }
+
+            function errorCallback(error) {
+                console.error('GPS error:', error);
+                statusMessage.textContent = '⚠️ GPS lost';
+                setTimeout(() => {
+                    if (!isRecording) statusMessage.textContent = '✅ Ready';
+                }, 3000);
+            }
+
+            watchId = navigator.geolocation.watchPosition(successCallback, errorCallback, options);
         }
 
         function getHaversineDistance(lat1, lon1, lat2, lon2) {
             const R = 6371;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                      Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c;
-        }
-
-        // Calculate directions
-        async function calculateDirections() {
-            const query = destinationInput.value;
-            if (!query) return;
-
-            autocompleteDropdown.style.display = 'none';
-            directionsOverlay.style.display = 'block';
-            directionsOverlay.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Geocoding destination...`;
-
-            try {
-                const geoUrl = `/api/proxy/geocode/?q=${encodeURIComponent(query)}&limit=1`;
-                const geoRes = await fetch(geoUrl);
-                const geoData = await geoRes.json();
-
-                if (!geoData || geoData.length === 0) {
-                    directionsOverlay.innerHTML = `<i class="fas fa-exclamation-triangle"></i> Destination not found!`;
-                    return;
-                }
-
-                const destLat = parseFloat(geoData[0].lat);
-                const destLng = parseFloat(geoData[0].lon);
-                const displayName = geoData[0].display_name.split(',')[0];
-
-                directionsOverlay.innerHTML = `<i class="fas fa-compass fa-spin"></i> Fetching directions...`;
-
-                const osrmUrl = `/api/proxy/route/?coordinates=${currentLng},${currentLat};${destLng},${destLat}&overview=full&geometries=geojson&steps=true`;
-                const osrmRes = await fetch(osrmUrl);
-                const osrmData = await osrmRes.json();
-
-                if (!osrmData.routes || osrmData.routes.length === 0) {
-                    directionsOverlay.innerHTML = `<i class="fas fa-times-circle"></i> No routes found for driving.`;
-                    return;
-                }
-
-                const route = osrmData.routes[0];
-                const routeGeo = route.geometry;
-                const distance = (route.distance / 1000).toFixed(1);
-                const duration = (route.duration / 60).toFixed(0);
-
-                routeSteps = [];
-                currentStepIndex = 0;
-                if (route.legs && route.legs[0] && route.legs[0].steps) {
-                    routeSteps = route.legs[0].steps;
-                }
-
-                let dynamicLimit = 50;
-                if (distance > 10) dynamicLimit = 80;
-                if (distance > 30) dynamicLimit = 110;
-                speedLimitSign.textContent = dynamicLimit;
-
-                // Draw route on 3D Maplibre Map using GeoJSON layers
-                if (map.getSource('route')) {
-                    map.getSource('route').setData({
-                        'type': 'Feature',
-                        'geometry': routeGeo
-                    });
-                }
-
-                // Fit bounds inside tilted perspective
-                const coordinates = routeGeo.coordinates;
-                const bounds = coordinates.reduce((bounds, coord) => {
-                    return bounds.extend(coord);
-                }, new maplibregl.LngLatBounds(coordinates[0], coordinates[0]));
-
-                map.fitBounds(bounds, { padding: 40, duration: 1500 });
-
-                // Add Marker for Destination
-                const destEl = document.createElement('div');
-                destEl.style.background = '#ff3b30';
-                destEl.style.width = '14px';
-                destEl.style.height = '14px';
-                destEl.style.borderRadius = '50%';
-                destEl.style.border = '3px solid white';
-                destEl.style.boxShadow = '0 0 15px #ff3b30';
-
-                new maplibregl.Marker({ element: destEl })
-                    .setLngLat([destLng, destLat])
-                    .setPopup(new maplibregl.Popup({ offset: 10 }).setHTML(`<b>${displayName}</b><br>${distance} km away`))
-                    .addTo(map);
-
-                if (routePolylineBackground) map.removeLayer(routePolylineBackground);
-                if (routePolyline) map.removeLayer(routePolyline);
-
-                const latLngs = routeGeo.coordinates.map(coord => [coord[1], coord[0]]);
-
-                routePolylineBackground = L.polyline(latLngs, {
-                    color: '#1d4ed8',
-                    weight: 10,
-                    opacity: 0.8
-                }).addTo(map);
-
-                routePolyline = L.polyline(latLngs, {
-                    color: '#3b82f6',
-                    weight: 6,
-                    opacity: 1.0
-                }).addTo(map);
-
-                map.fitBounds(routePolyline.getBounds());
-
-                const destIcon = L.divIcon({
-                    className: 'dest-icon',
-                    html: '<div style="background: #ff3b30; width: 14px; height: 14px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 12px #ff3b30;"></div>',
-                    iconSize: [14, 14],
-                    iconAnchor: [7, 7]
-                });
-                L.marker([destLat, destLng], { icon: destIcon }).addTo(map)
-                    .bindPopup(`<b>${displayName}</b><br>${distance} km away`).openPopup();
-
-                if (routeSteps.length > 0) {
-                    const firstStep = routeSteps[0];
-                    const iconClass = getDirectionIcon(firstStep.maneuver.modifier);
-                    const instructionText = getReadableInstruction(firstStep);
-                    directionsOverlay.innerHTML = `<i class="fas ${iconClass}" style="color: #6366f1; margin-right: 8px; font-size: 14px;"></i> ${instructionText}`;
-                } else {
-                    directionsOverlay.innerHTML = `<i class="fas fa-directions"></i> Drive to <strong>${displayName}</strong>: ${distance} km (${duration} mins)`;
-                }
-
-            } catch (e) {
-                console.error('Directions routing engine exception:', e);
-                directionsOverlay.innerHTML = `<i class="fas fa-exclamation-circle"></i> Directions failed. Please try again.`;
-            }
-        }
-
-        // WebSocket connection
-        function connectWebSocket() {
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${wsProtocol}//${window.location.host}/ws/video/`;
-            
-            try {
-                ws = new WebSocket(wsUrl);
-                
-                ws.onopen = function() {
-                    console.log('WebSocket connected');
-                    connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #34c759;"></i> Online';
-                    statusMessage.textContent = 'Ready';
-                    reconnectAttempts = 0;
-                };
-                
-                ws.onmessage = function(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-                        if (data.type === 'set_vehicle_plate') {
-                            currentPlate = data.plate.toUpperCase() || 'ABC-1234';
-                            localStorage.setItem('dashcam_plate', currentPlate);
-                            console.log('Synchronized vehicle plate to:', currentPlate);
-                        } else if (data.type === 'video_frame' && data.detections) {
-                            liveYoloDetections = data.detections;
-                            lastDetectionTime = Date.now();
-                        }
-                    } catch (e) {
-                        console.error('Error handling WebSocket message:', e);
-                    }
-                };
-
-                ws.onclose = function() {
-                    console.log('WebSocket disconnected');
-                    connectionStatus.innerHTML = '<i class="fas fa-circle" style="color: #ff3b30;"></i> Offline';
-                    statusMessage.textContent = 'Offline';
-                    
-                    if (reconnectAttempts < maxReconnectAttempts) {
-                        reconnectAttempts++;
-                        setTimeout(connectWebSocket, 3000);
-                    }
-                };
-                
-                ws.onerror = function(error) {
-                    console.error('WebSocket error:', error);
-                };
-                
-            } catch (e) {
-                console.error('WebSocket connection failed:', e);
-                setTimeout(connectWebSocket, 3000);
-            }
-        }
-
-        // OSD Canvas Rendering
-        function startOSDDrawLoop() {
-            liveCanvas.width = 1920;
-            liveCanvas.height = 1080;
-
-            if (osdInterval) clearInterval(osdInterval);
-
-            osdInterval = setInterval(() => {
-                if (video.videoWidth && video.readyState >= 2) {
-                    const vWidth = video.videoWidth;
-                    const vHeight = video.videoHeight;
-                    const cWidth = liveCanvas.width;
-                    const cHeight = liveCanvas.height;
-
-                    const videoAspect = vWidth / vHeight;
-                    const canvasAspect = cWidth / cHeight;
-
-                    let drawWidth, drawHeight, drawX, drawY;
-
-                    if (videoAspect > canvasAspect) {
-                        drawHeight = cHeight;
-                        drawWidth = cHeight * videoAspect;
-                        drawX = (cWidth - drawWidth) / 2;
-                        drawY = 0;
-                    } else {
-                        drawWidth = cWidth;
-                        drawHeight = cWidth / videoAspect;
-                        drawX = 0;
-                        drawY = (cHeight - drawHeight) / 2;
-                    }
-
-                    osdCtx.drawImage(video, drawX, drawY, drawWidth, drawHeight);
-                } else {
-                    osdCtx.fillStyle = '#111';
-                    osdCtx.fillRect(0, 0, liveCanvas.width, liveCanvas.height);
-
-                    osdCtx.strokeStyle = 'rgba(255,255,255,0.05)';
-                    osdCtx.lineWidth = 1;
-                    for (let x = 0; x < liveCanvas.width; x += 40) {
-                        osdCtx.beginPath();
-                        osdCtx.moveTo(x, 0);
-                        osdCtx.lineTo(x, liveCanvas.height);
-                        osdCtx.stroke();
-                    }
-                    for (let y = 0; y < liveCanvas.height; y += 40) {
-                        osdCtx.beginPath();
-                        osdCtx.moveTo(0, y);
-                        osdCtx.lineTo(liveCanvas.width, y);
-                        osdCtx.stroke();
-                    }
-
-                    osdCtx.fillStyle = 'rgba(255, 255, 255, 0.2)';
-                    osdCtx.font = '24px Arial, sans-serif';
-                    osdCtx.fillText("AWAITING CAMERA HARDWARE...", 440, 360);
-                }
-
-                // Laser sweep
-                osdCtx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
-                osdCtx.lineWidth = 4;
-                osdCtx.beginPath();
-                osdCtx.moveTo(0, sweepY);
-                osdCtx.lineTo(liveCanvas.width, sweepY);
-                osdCtx.stroke();
-
-                osdCtx.fillStyle = 'rgba(0, 255, 136, 0.08)';
-                osdCtx.fillRect(0, sweepY - 10, liveCanvas.width, 20);
-
-                sweepY += sweepDirection;
-                if (sweepY >= liveCanvas.height - 120 || sweepY <= 50) {
-                    sweepDirection *= -1;
-                }
-
-                // YOLO detections
-                if (typeof liveYoloDetections !== 'undefined' && liveYoloDetections && liveYoloDetections.length > 0 && (Date.now() - lastDetectionTime < 1500)) {
-                    liveYoloDetections.forEach(det => {
-                        const [x1, y1, x2, y2] = det.bbox;
-
-                        const rx1 = x1 * (1920 / 480);
-                        const ry1 = y1 * (1080 / 270);
-                        const rx2 = x2 * (1920 / 480);
-                        const ry2 = y2 * (1080 / 270);
-                        const rw = rx2 - rx1;
-                        const rh = ry2 - ry1;
-
-                        let color = '#00ff88';
-                        if (det.class === 'person') color = '#38bdf8';
-                        if (det.class === 'traffic light' || det.class === 'stop sign') color = '#ff3b30';
-
-                        osdCtx.strokeStyle = color;
-                        osdCtx.lineWidth = 3;
-                        osdCtx.strokeRect(rx1, ry1, rw, rh);
-
-                        osdCtx.fillStyle = color;
-                        osdCtx.font = 'bold 14px monospace';
-
-                        let label = `${det.class.toUpperCase()} ${(det.confidence * 100).toFixed(0)}%`;
-                        if (['car', 'truck', 'bus', 'motorcycle'].includes(det.class)) {
-                            const sim_height = (1.4 + (rh * 0.005)).toFixed(1);
-                            label += ` | H: ${sim_height}m`;
-                        }
-
-                        const textWidth = osdCtx.measureText(label).width + 10;
-                        osdCtx.fillRect(rx1, ry1 - 22, textWidth, 22);
-                        osdCtx.fillStyle = '#000000';
-                        osdCtx.fillText(label, rx1 + 5, ry1 - 6);
-                    });
-                } else {
-                    const cx = 1280 / 2;
-                    const cy = 720 / 2;
-                    const bSize = 60;
-
-                    osdCtx.strokeStyle = 'rgba(0, 255, 136, 0.4)';
-                    osdCtx.lineWidth = 2;
-
-                    osdCtx.beginPath();
-                    osdCtx.moveTo(cx - bSize, cy - bSize + 15);
-                    osdCtx.lineTo(cx - bSize, cy - bSize);
-                    osdCtx.lineTo(cx - bSize + 15, cy - bSize);
-                    osdCtx.stroke();
-
-                    osdCtx.beginPath();
-                    osdCtx.moveTo(cx + bSize, cy - bSize + 15);
-                    osdCtx.lineTo(cx + bSize, cy - bSize);
-                    osdCtx.lineTo(cx + bSize - 15, cy - bSize);
-                    osdCtx.stroke();
-
-                    osdCtx.beginPath();
-                    osdCtx.moveTo(cx - bSize, cy + bSize - 15);
-                    osdCtx.lineTo(cx - bSize, cy + bSize);
-                    osdCtx.lineTo(cx - bSize + 15, cy + bSize);
-                    osdCtx.stroke();
-
-                    osdCtx.beginPath();
-                    osdCtx.moveTo(cx + bSize, cy + bSize - 15);
-                    osdCtx.lineTo(cx + bSize, cy + bSize);
-                    osdCtx.lineTo(cx + bSize - 15, cy + bSize);
-                    osdCtx.stroke();
-                }
-
-                // Watermark
-                osdCtx.fillStyle = 'rgba(10, 15, 30, 0.8)';
-                osdCtx.fillRect(liveCanvas.width - 240, 20, 200, 45);
-                osdCtx.fillStyle = '#ff9500';
-                osdCtx.font = 'bold 24px Arial, sans-serif';
-                osdCtx.fillText('REAGANTECH', liveCanvas.width - 221, 52);
-
-                // Bottom banner
-                osdCtx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-                osdCtx.fillRect(0, liveCanvas.height - 100, liveCanvas.width, 100);
-
-                const now = new Date();
-                osdCtx.fillStyle = '#ffffff';
-                osdCtx.font = '20px monospace';
-                osdCtx.fillText(`DATE: ${now.toLocaleDateString()}   TIME: ${now.toLocaleTimeString()}`, 40, liveCanvas.height - 60);
-                osdCtx.fillStyle = '#ff9500';
-                osdCtx.fillText(`VEHICLE PLATE: ${currentPlate}`, liveCanvas.width - 380, liveCanvas.height - 60);
-
-                osdCtx.fillStyle = '#00ff88';
-                osdCtx.font = 'bold 24px monospace';
-                osdCtx.fillText(`SPEED: ${currentSpeed.toFixed(1)} KM/H`, 40, liveCanvas.height - 22);
-
-                osdCtx.fillStyle = '#ffffff';
-                osdCtx.font = '20px monospace';
-                osdCtx.fillText(`GPS: ${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`, liveCanvas.width - 380, liveCanvas.height - 22);
-
-            }, 66);
-        }
-
-        // Toggle recording
-        async function toggleRecording() {
-            if (isRecording) {
-                await stopRecording();
-            } else {
-                await startRecording();
-            }
-        }
-
-        // Start recording
-        async function startRecording() {
-            try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({
-                    video: {
-                        width: { ideal: 1920, min: 1280 },
-                        height: { ideal: 1080, min: 720 },
-                        facingMode: 'environment',
-                        frameRate: { ideal: 15 }
-                    },
-                    audio: true
-                });
-                
-                video.srcObject = mediaStream;
-                
-                statusMessage.textContent = 'Creating video session...';
-                await createRecordingSession();
-
-                isRecording = true;
-                startLocationTracking();
-                startOSDDrawLoop();
-                startVoiceRecognition();
-
-                recordedChunks = [];
-                const canvasStream = liveCanvas.captureStream(15);
-                const combinedStream = new MediaStream();
-                combinedStream.addTrack(canvasStream.getVideoTracks()[0]);
-
-                const audioTracks = mediaStream.getAudioTracks();
-                if (audioTracks.length > 0) {
-                    combinedStream.addTrack(audioTracks[0]);
-                }
-
-                let recordingMimeType = 'video/mp4; codecs=h264';
-                recExtension = 'mp4';
-
-                if (!MediaRecorder.isTypeSupported(recordingMimeType)) {
-                    recordingMimeType = 'video/mp4';
-                    if (!MediaRecorder.isTypeSupported(recordingMimeType)) {
-                        recordingMimeType = 'video/webm; codecs=h264';
-                        recExtension = 'webm';
-                        if (!MediaRecorder.isTypeSupported(recordingMimeType)) {
-                            recordingMimeType = 'video/webm';
-                        }
-                    }
-                }
-
-                console.log(`MediaRecorder utilizing mimeType: ${recordingMimeType}`);
-                mediaRecorder = new MediaRecorder(combinedStream, {
-                    mimeType: recordingMimeType,
-                    videoBitsPerSecond: 6000000
-                });
-                mediaRecorder.ondataavailable = function(e) {
-                    if (e.data && e.data.size > 0) {
-                        recordedChunks.push(e.data);
-                    }
-                };
-                mediaRecorder.start(1000);
-
-                if (frameInterval) clearInterval(frameInterval);
-                sendLightweightPreviews();
-                
-                recordBtn.innerHTML = '<i class="fas fa-dot-circle"></i>';
-                recordBtn.className = 'control-btn btn-start active';
-                recordingStatus.textContent = 'RECORDING';
-                recordingDot.className = 'recording-dot active';
-                stopBtn.disabled = false;
-                statusMessage.textContent = 'Recording live...';
-                
-            } catch (error) {
-                console.error('Error starting recording:', error);
-                statusMessage.textContent = 'Camera permission denied.';
-                alert('Please allow camera and mic access to start recording.');
-            }
-        }
-
-        async function createRecordingSession() {
-            try {
-                const response = await fetch('/api/recordings/videos/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        driver: 1,
-                        vehicle_registration: currentPlate,
-                        start_time: new Date().toISOString(),
-                        start_latitude: currentLat,
-                        start_longitude: currentLng,
-                        is_emergency: false
-                    })
-                });
-                if (!response.ok) throw new Error();
-                const data = await response.json();
-                recordingId = data.id;
-                console.log('Driving session started on backend:', recordingId);
-            } catch (e) {
-                console.warn('E: Rest session setup failed. Running backup diagnostics...');
-                await setupFallbackData();
-                const response = await fetch('/api/recordings/videos/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        driver: 1,
-                        vehicle: 1,
-                        start_time: new Date().toISOString(),
-                        start_latitude: currentLat,
-                        start_longitude: currentLng,
-                        is_emergency: false
-                    })
-                });
-                const data = await response.json();
-                recordingId = data.id;
-            }
-        }
-
-        async function setupFallbackData() {
-            try {
-                await fetch('/api/drivers/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name: 'Default Driver', license_number: 'DL12345', phone: '1234567890' })
-                });
-                await fetch('/api/vehicles/', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ registration: currentPlate, model: 'Dashcam Model', make: 'Make', year: 2024, color: 'Black', owner: 1 })
-                });
-            } catch (e) {
-                console.log('Backup credentials synchronized.');
-            }
-        }
-
-        // Location tracking
-        function startLocationTracking() {
-            if (watchId) navigator.geolocation.clearWatch(watchId);
-
-            lastGpsTime = null;
-            lastLat = null;
-            lastLng = null;
-            travelCoords = [];
-
-            const options = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
-
-            function successCallback(position) {
-                const { latitude, longitude, speed, heading } = position.coords;
-                let speedKmh = 0;
-                const now = Date.now();
-
-                if (speed !== null && speed !== undefined) {
-                    speedKmh = speed * 3.6;
-                } else if (lastLat !== null && lastLng !== null && lastGpsTime !== null) {
-                    const seconds = (now - lastGpsTime) / 1000;
-                    if (seconds > 0.5) {
-                        const R = 6371;
-                        const dLat = (latitude - lastLat) * Math.PI / 180;
-                        const dLng = (longitude - lastLng) * Math.PI / 180;
-                        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                                  Math.cos(lastLat * Math.PI / 180) * Math.cos(latitude * Math.PI / 180) *
-                                  Math.sin(dLng/2) * Math.sin(dLng/2);
-                        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-                        speedKmh = ((R * c) / seconds) * 3600;
-                        if (speedKmh < 1.0) speedKmh = 0;
-                    }
-                }
-
-                currentLat = latitude;
-                currentLng = longitude;
-                currentSpeed = speedKmh;
-
-                lastLat = latitude;
-                lastLng = longitude;
-                lastGpsTime = now;
-
-                speedDisplay.innerHTML = `${speedKmh.toFixed(1)} <small>km/h</small>`;
-                gpsDisplay.innerHTML = `Lat: ${latitude.toFixed(6)}<br>Lng: ${longitude.toFixed(6)}`;
-
-                if (map) {
-                    deviceMarker.setLngLat([longitude, latitude]);
-
-                    // Rotate map and tilt camera if Adaptive Map mode is active (3D Course Up 360 deg navigation)
-                    if (mapRotationMode === 'adaptive') {
-                        let activeHeading = heading;
-                        if ((activeHeading === null || activeHeading === undefined) && lastLat !== null && lastLng !== null) {
-                            // Calculate heading angle from movement
-                            const dy = latitude - lastLat;
-                            const dx = longitude - lastLng;
-                            activeHeading = Math.atan2(dx, dy) * (180 / Math.PI);
-                            if (activeHeading < 0) activeHeading += 360;
-                        }
-
-                        const rot = activeHeading || 0;
-                        map.easeTo({
-                            center: [longitude, latitude],
-                            bearing: rot, // Full 360-degree rotation matching heading
-                            pitch: 65, // Max 3D cockpit perspective angle
-                            duration: 1000,
-                            easing: (t) => t
-                        });
-                    } else {
-                        // Normal North-Locked Flat mode
-                        map.easeTo({
-                            center: [longitude, latitude],
-                            bearing: 0,
-                            pitch: 0,
-                            duration: 1000
-                        });
-                    }
-
-                    // Populate and save travelled coordinate tracks locally
-                    travelCoords.push([longitude, latitude]);
-                    deviceMarker.setLatLng([latitude, longitude]);
-                    
-                    // If north lock is active, keep map centered and north-oriented
-                    if (northLockActive) {
-                        map.setView([latitude, longitude], map.getZoom(), { animate: true });
-                    } else {
-                        map.panTo([latitude, longitude]);
-                    }
-
-                    travelCoords.push([latitude, longitude]);
-                    travelPathPolyline.setLatLngs(travelCoords);
-                }
-
-                if (typeof routeSteps !== 'undefined' && routeSteps && routeSteps.length > 0) {
-                    const nextStep = routeSteps[currentStepIndex];
-                    if (nextStep && nextStep.maneuver && nextStep.maneuver.location) {
-                        const stepLon = nextStep.maneuver.location[0];
-                        const stepLat = nextStep.maneuver.location[1];
-                        const distToStep = getHaversineDistance(latitude, longitude, stepLat, stepLon) * 1000;
-
-                        if (distToStep < 40 && currentStepIndex < routeSteps.length - 1) {
-                            currentStepIndex++;
-                            console.log("Navigation advanced to step:", currentStepIndex);
-                        }
-                    }
-
-                    const activeStep = routeSteps[currentStepIndex];
-                    if (activeStep) {
-                        const iconClass = getDirectionIcon(activeStep.maneuver.modifier);
-                        const instructionText = getReadableInstruction(activeStep);
-                        directionsOverlay.innerHTML = `<i class="fas ${iconClass}" style="color: #6366f1; margin-right: 8px; font-size: 14px;"></i> ${instructionText}`;
-                    }
-                }
-
-                sendGPSData(latitude, longitude, speedKmh, heading);
-            }
-
-            function errorCallback(error) {
-                console.error('GPS tracking error:', error);
-                statusMessage.textContent = 'Hardware GPS Off';
-
-                if (options.enableHighAccuracy) {
-                    console.log("Retrying location tracking with high-accuracy disabled...");
-                    options.enableHighAccuracy = false;
-                    options.timeout = 15000;
-                    watchId = navigator.geolocation.watchPosition(successCallback, (err) => {
-                        console.error("Fallback low-accuracy tracking failed too:", err);
-                    }, options);
-                }
-            }
-
-            watchId = navigator.geolocation.watchPosition(successCallback, errorCallback, options);
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+            return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
         function getReadableInstruction(step) {
-            if (!step || !step.maneuver) return "Proceed straight";
-
+            if (!step || !step.maneuver) return "Proceed";
             const type = step.maneuver.type;
-            const modifier = step.maneuver.modifier;
-            const name = step.name || "unnamed road";
-            const dist = step.distance;
-
-            let actionStr = "";
-            if (type === "depart") {
-                actionStr = `Head ${modifier || "ahead"}`;
-            } else if (type === "arrive") {
-                return `Arrive at destination on ${name}`;
-            } else if (type === "turn") {
-                actionStr = `Turn ${modifier || "ahead"}`;
-            } else if (type === "new name") {
-                actionStr = "Continue";
-            } else {
-                actionStr = `${type} ${modifier || ""}`.trim();
-            }
-
-            actionStr = actionStr.charAt(0).toUpperCase() + actionStr.slice(1);
-
-            if (dist > 0) {
-                return `In ${dist.toFixed(0)}m, ${actionStr.toLowerCase()} onto <strong>${name}</strong>`;
-            } else {
-                return `${actionStr} onto <strong>${name}</strong>`;
-            }
+            const modifier = step.maneuver.modifier || "";
+            const name = step.name || "road";
+            const dist = step.distance || 0;
+            if (type === "depart") return `Head ${modifier} on ${name}`;
+            if (type === "arrive") return `Arrive at ${name}`;
+            let action = `${type} ${modifier}`.trim();
+            return `${action} on ${name} (${dist.toFixed(0)}m)`;
         }
 
         function getDirectionIcon(modifier) {
             if (!modifier) return "fa-arrow-up";
-            const mod = modifier.toLowerCase();
-            if (mod.includes("left")) return "fa-arrow-left";
-            if (mod.includes("right")) return "fa-arrow-right";
-            if (mod.includes("sharp left")) return "fa-reply";
-            if (mod.includes("sharp right")) return "fa-share";
-            if (mod.includes("slight left")) return "fa-location-arrow";
-            if (mod.includes("slight right")) return "fa-location-arrow";
+            const m = modifier.toLowerCase();
+            if (m.includes("left")) return "fa-arrow-left";
+            if (m.includes("right")) return "fa-arrow-right";
             return "fa-arrow-up";
         }
 
         function sendGPSData(lat, lng, speed, heading) {
             if (ws && ws.readyState === WebSocket.OPEN && recordingId) {
-                ws.send(JSON.stringify({
-                    type: 'gps_data',
-                    recording_id: recordingId,
-                    timestamp: new Date().toISOString(),
-                    latitude: lat,
-                    longitude: lng,
-                    speed: speed,
-                    altitude: 10.0,
-                    accuracy: 1.0,
-                    heading: heading || 0
+                ws.send(JSON.stringify({ 
+                    type:'gps_data', 
+                    recording_id:recordingId, 
+                    timestamp:new Date().toISOString(), 
+                    latitude:lat, 
+                    longitude:lng, 
+                    speed:speed, 
+                    heading:heading||0 
                 }));
+            }
+        }
+
+        // ===== WEBSOCKET =====
+        function connectWebSocket() {
+            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws/video/`;
+            try {
+                ws = new WebSocket(wsUrl);
+                ws.onopen = () => { 
+                    connectionStatus.innerHTML = '<i class="fas fa-circle" style="color:#34c759;font-size:8px;"></i> Online'; 
+                    statusMessage.textContent='✅ Ready'; 
+                };
+                ws.onmessage = (e) => {
+                    try {
+                        const data = JSON.parse(e.data);
+                        if (data.type === 'video_frame' && data.detections) { 
+                            liveYoloDetections = data.detections; 
+                            lastDetectionTime = Date.now(); 
+                        }
+                        if (data.type === 'set_vehicle_plate') { 
+                            currentPlate = data.plate.toUpperCase(); 
+                            localStorage.setItem('dashcam_plate', currentPlate); 
+                        }
+                        if (data.type === 'location_update') {
+                            if (data.latitude && data.longitude) {
+                                const lat = parseFloat(data.latitude);
+                                const lng = parseFloat(data.longitude);
+                                const heading = data.heading ? parseFloat(data.heading) : null;
+                                routePoints.push([lat, lng]);
+                                updateMapPosition(lat, lng, heading);
+                            }
+                        }
+                    } catch(err) {}
+                };
+                ws.onclose = () => { 
+                    connectionStatus.innerHTML = '<i class="fas fa-circle" style="color:#ff3b30;font-size:8px;"></i> Offline'; 
+                    setTimeout(connectWebSocket, 3000); 
+                };
+                ws.onerror = () => { 
+                    connectionStatus.innerHTML = '<i class="fas fa-circle" style="color:#ff9500;font-size:8px;"></i> Error'; 
+                };
+            } catch(e) {
+                console.warn('WebSocket unavailable');
+                connectionStatus.innerHTML = '<i class="fas fa-circle" style="color:#ff9500;font-size:8px;"></i> Local';
+            }
+        }
+
+        // ===== OSD =====
+        function startOSDDrawLoop() {
+            const rect = liveCanvas.parentElement.getBoundingClientRect();
+            const containerWidth = rect.width;
+            const containerHeight = rect.height;
+            
+            const aspectRatio = 16/9;
+            let canvasWidth = containerWidth;
+            let canvasHeight = containerWidth / aspectRatio;
+            
+            if (canvasHeight > containerHeight) {
+                canvasHeight = containerHeight;
+                canvasWidth = containerHeight * aspectRatio;
+            }
+            
+            const scale = 1.5;
+            liveCanvas.width = canvasWidth * scale * 2;
+            liveCanvas.height = canvasHeight * scale * 2;
+            liveCanvas.style.width = canvasWidth + 'px';
+            liveCanvas.style.height = canvasHeight + 'px';
+            
+            if (osdInterval) clearInterval(osdInterval);
+            
+            let frameCount = 0;
+            
+            osdInterval = setInterval(() => {
+                frameCount++;
+                if (frameCount % 3 !== 0 && isRecording) {
+                    return;
+                }
+                
+                const ctx = osdCtx;
+                const w = liveCanvas.width;
+                const h = liveCanvas.height;
+                
+                ctx.clearRect(0, 0, w, h);
+                
+                if (video.videoWidth && video.readyState >= 2) {
+                    const vw = video.videoWidth;
+                    const vh = video.videoHeight;
+                    const vidAspect = vw / vh;
+                    const canvasAspect = w / h;
+                    
+                    let dw, dh, dx, dy;
+                    if (vidAspect > canvasAspect) {
+                        dh = h;
+                        dw = h * vidAspect;
+                        dx = (w - dw) / 2;
+                        dy = 0;
+                    } else {
+                        dw = w;
+                        dh = w / vidAspect;
+                        dx = 0;
+                        dy = (h - dh) / 2;
+                    }
+                    
+                    ctx.drawImage(video, dx, dy, dw, dh);
+                } else {
+                    ctx.fillStyle = '#080b16';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.fillStyle = 'rgba(255,255,255,0.05)';
+                    ctx.font = `${Math.round(w * 0.025)}px Arial`;
+                    ctx.textAlign = 'center';
+                    ctx.fillText('📹 CAMERA', w/2, h/2);
+                }
+                
+                if (liveYoloDetections && liveYoloDetections.length && (Date.now()-lastDetectionTime<1500)) {
+                    const scaleX = w / 640;
+                    const scaleY = h / 360;
+                    liveYoloDetections.forEach(det => {
+                        if (!det.bbox) return;
+                        const [x1,y1,x2,y2] = det.bbox;
+                        const rx1 = x1 * scaleX;
+                        const ry1 = y1 * scaleY;
+                        const rw = (x2-x1) * scaleX;
+                        const rh = (y2-y1) * scaleY;
+                        ctx.strokeStyle = '#00ff88';
+                        ctx.lineWidth = 3;
+                        ctx.shadowColor = '#00ff88';
+                        ctx.shadowBlur = 10;
+                        ctx.strokeRect(rx1, ry1, rw, rh);
+                        ctx.shadowBlur = 0;
+                        ctx.fillStyle = '#00ff88';
+                        ctx.font = `bold ${Math.round(w * 0.018)}px monospace`;
+                        ctx.fillText(`${det.class||'obj'} ${((det.confidence||0)*100).toFixed(0)}%`, rx1, ry1-8);
+                    });
+                }
+                
+                const barHeight = Math.round(h * 0.07);
+                const barY = h - barHeight;
+                
+                ctx.fillStyle = 'rgba(0,0,0,0.85)';
+                ctx.fillRect(0, barY, w, barHeight);
+                
+                ctx.strokeStyle = 'rgba(255,255,255,0.05)';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(0, barY);
+                ctx.lineTo(w, barY);
+                ctx.stroke();
+                
+                const fontSize = Math.round(w * 0.022);
+                ctx.font = `${fontSize}px monospace`;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'middle';
+                
+                const leftMargin = Math.round(w * 0.02);
+                const rightMargin = Math.round(w * 0.02);
+                const centerX = w / 2;
+                const barCenterY = barY + (barHeight / 2);
+                
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('en-US', { hour12: false });
+                const dateStr = now.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit' 
+                });
+                ctx.fillStyle = '#e2e8f0';
+                ctx.textAlign = 'left';
+                ctx.fillText(`${dateStr} ${timeStr}`, leftMargin, barCenterY);
+                
+                if (isRecording && recordingStartTime) {
+                    const duration = Math.floor((Date.now() - recordingStartTime) / 1000);
+                    const mins = String(Math.floor(duration / 60)).padStart(2, '0');
+                    const secs = String(duration % 60).padStart(2, '0');
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#ff3b30';
+                    ctx.font = `bold ${fontSize}px monospace`;
+                    ctx.fillText(`● ${mins}:${secs}`, centerX, barCenterY);
+                    ctx.font = `${fontSize}px monospace`;
+                } else {
+                    ctx.textAlign = 'center';
+                    ctx.fillStyle = '#94a3b8';
+                    ctx.fillText('● STANDBY', centerX, barCenterY);
+                }
+                
+                const rightSectionStart = w - rightMargin;
+                ctx.textAlign = 'right';
+                
+                ctx.fillStyle = '#00ff88';
+                ctx.font = `bold ${Math.round(fontSize * 1.3)}px monospace`;
+                const speedText = `${Math.round(currentSpeed)} km/h`;
+                ctx.fillText(speedText, rightSectionStart, barCenterY - 6);
+                
+                ctx.fillStyle = '#e2e8f0';
+                ctx.font = `${Math.round(fontSize * 0.9)}px monospace`;
+                const gpsText = `${currentLat.toFixed(6)}, ${currentLng.toFixed(6)}`;
+                ctx.fillText(gpsText, rightSectionStart, barCenterY + 16);
+                
+                ctx.font = `${fontSize}px monospace`;
+                ctx.textBaseline = 'alphabetic';
+                
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                const watermarkW = Math.round(w * 0.18);
+                const watermarkH = Math.round(h * 0.045);
+                const watermarkX = w - watermarkW - Math.round(w * 0.01);
+                const watermarkY = Math.round(h * 0.015);
+                ctx.fillRect(watermarkX, watermarkY, watermarkW, watermarkH);
+                
+                ctx.fillStyle = '#ff9500';
+                ctx.font = `bold ${Math.round(w * 0.022)}px Arial`;
+                ctx.textAlign = 'right';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('REAGANTECH', w - Math.round(w * 0.02), watermarkY + (watermarkH / 2));
+                ctx.textBaseline = 'alphabetic';
+                
+                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                const plateW = Math.round(w * 0.18);
+                const plateH = Math.round(h * 0.04);
+                const plateX = leftMargin;
+                const plateY = barY - plateH - 6;
+                ctx.fillRect(plateX, plateY, plateW, plateH);
+                
+                ctx.fillStyle = '#ff9500';
+                ctx.font = `bold ${Math.round(w * 0.018)}px monospace`;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+                ctx.fillText(`🚗 ${currentPlate}`, plateX + 6, plateY + plateH - 4);
+                ctx.textBaseline = 'alphabetic';
+                
+                if (frameCount % 2 === 0) {
+                    ctx.strokeStyle = 'rgba(0,255,136,0.03)';
+                    ctx.lineWidth = 1.5;
+                    ctx.beginPath();
+                    const sweepPos = sweepY * (h / 720);
+                    ctx.moveTo(0, sweepPos);
+                    ctx.lineTo(w, sweepPos);
+                    ctx.stroke();
+                    sweepY += sweepDirection;
+                    if (sweepY > 680 || sweepY < 40) sweepDirection *= -1;
+                }
+                
+            }, 66);
+        }
+
+        // ===== RECORDING =====
+        async function toggleRecording() {
+            if (isRecording) { await stopRecording(); } else { await startRecording(); }
+        }
+
+        async function startRecording() {
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1920, min: 1280 },
+                        height: { ideal: 1080, min: 720 },
+                        facingMode: 'environment',
+                        frameRate: { ideal: 30, max: 30 }
+                    }, 
+                    audio: true 
+                });
+                video.srcObject = mediaStream;
+                await createRecordingSession();
+                isRecording = true;
+                recordingStartTime = Date.now();
+                totalRecordedSize = 0;
+                
+                if (!watchId) {
+                    startLocationTracking();
+                }
+                startOSDDrawLoop();
+                
+                startVoiceRecognition();
+                
+                recordingOverlay.classList.add('active');
+                storageIndicator.classList.add('active');
+                
+                if (storageUpdateInterval) clearInterval(storageUpdateInterval);
+                storageUpdateInterval = setInterval(updateStorageInfo, 1000);
+                
+                recordedChunks = [];
+                const canvasStream = liveCanvas.captureStream(15);
+                const combined = new MediaStream();
+                combined.addTrack(canvasStream.getVideoTracks()[0]);
+                if (mediaStream.getAudioTracks().length) combined.addTrack(mediaStream.getAudioTracks()[0]);
+                
+                let mime = 'video/mp4;codecs=h264';
+                if (!MediaRecorder.isTypeSupported(mime)) { 
+                    mime='video/webm;codecs=h264'; 
+                    recExtension='webm'; 
+                    if(!MediaRecorder.isTypeSupported(mime)){ 
+                        mime='video/webm'; 
+                        recExtension='webm'; 
+                    } 
+                }
+                mediaRecorder = new MediaRecorder(combined, { 
+                    mimeType: mime, 
+                    videoBitsPerSecond: 8000000
+                });
+                mediaRecorder.ondataavailable = e => { 
+                    if(e.data.size) {
+                        recordedChunks.push(e.data);
+                        totalRecordedSize += e.data.size;
+                    }
+                };
+                mediaRecorder.start(1000);
+                
+                if(frameInterval) clearInterval(frameInterval);
+                sendLightweightPreviews();
+                
+                recordBtn.innerHTML = '<i class="fas fa-dot-circle"></i>'; 
+                recordBtn.className='control-btn btn-start active';
+                recordingStatus.textContent='REC'; 
+                recordingDot.className='recording-dot active'; 
+                stopBtn.disabled=false;
+                statusMessage.textContent='🔴 Recording';
+                
+            } catch(e) {
+                statusMessage.textContent='⚠️ Camera error';
+                alert('Please allow camera and microphone access.');
+                console.error(e);
+            }
+        }
+
+        async function createRecordingSession() {
+            try {
+                const response = await fetch('/api/recordings/videos/', { 
+                    method:'POST', 
+                    headers:{'Content-Type':'application/json'}, 
+                    body:JSON.stringify({ 
+                        driver:1, 
+                        vehicle_registration:currentPlate, 
+                        start_time:new Date().toISOString(), 
+                        start_latitude:currentLat, 
+                        start_longitude:currentLng, 
+                        is_emergency:false 
+                    }) 
+                });
+                const data = await response.json(); 
+                recordingId = data.id;
+            } catch(e) { 
+                recordingId = 'local_' + Date.now(); 
             }
         }
 
         function sendLightweightPreviews() {
             const previewCanvas = document.createElement('canvas');
-            const previewCtx = previewCanvas.getContext('2d');
-            previewCanvas.width = 480;
-            previewCanvas.height = 270;
-
+            const pctx = previewCanvas.getContext('2d');
+            previewCanvas.width = 320; previewCanvas.height = 180;
             frameInterval = setInterval(() => {
-                if (!isRecording || !liveCanvas.width) return;
-
-                previewCtx.drawImage(liveCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
-                const baseFrame = previewCanvas.toDataURL('image/jpeg', 0.5);
-
-                if (ws && ws.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({
-                        type: 'video_frame',
-                        frame: baseFrame,
-                        timestamp: new Date().toISOString()
-                    }));
-                }
-            }, 400);
+                if(!isRecording || !liveCanvas.width) return;
+                try {
+                    pctx.drawImage(liveCanvas, 0, 0, 320, 180);
+                    const baseFrame = previewCanvas.toDataURL('image/jpeg', 0.3);
+                    if(ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ 
+                            type:'video_frame', 
+                            frame:baseFrame, 
+                            timestamp:new Date().toISOString() 
+                        }));
+                    }
+                } catch(e) {}
+            }, 1000);
         }
 
-        // Stop recording
         async function stopRecording() {
-            if (!isRecording) return;
+            if(!isRecording) return;
             isRecording = false;
-            statusMessage.textContent = 'Saving footage...';
-
-            if (speechRecognizer) {
-                try { speechRecognizer.stop(); } catch(e) {}
-                speechRecognizer = null;
-            }
-
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-            }
-
-            if (frameInterval) clearInterval(frameInterval);
-            if (osdInterval) clearInterval(osdInterval);
-            if (watchId) {
-                navigator.geolocation.clearWatch(watchId);
-                watchId = null;
+            statusMessage.textContent='💾 Saving...';
+            
+            recordingOverlay.classList.remove('active');
+            storageIndicator.classList.remove('active');
+            if (storageUpdateInterval) {
+                clearInterval(storageUpdateInterval);
+                storageUpdateInterval = null;
             }
             
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(track => track.stop());
-                mediaStream = null;
-            }
+            stopVoiceRecognition();
             
+            if(mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+            if(frameInterval) clearInterval(frameInterval);
+            if(osdInterval) clearInterval(osdInterval);
+            if(watchId) { 
+                navigator.geolocation.clearWatch(watchId); 
+                watchId = null; 
+            }
+            if(mediaStream) { mediaStream.getTracks().forEach(t=>t.stop()); mediaStream=null; }
             video.srcObject = null;
+            
             currentSpeed = 0;
-            
-            setTimeout(async () => {
-                if (recordedChunks.length > 0) {
-                    const videoBlob = new Blob(recordedChunks, { type: mediaRecorder.mimeType || 'video/webm' });
-                    const downloadUrl = URL.createObjectURL(videoBlob);
-
-                    const a = document.createElement('a');
-                    a.style.display = 'none';
-                    a.href = downloadUrl;
-                    a.download = `reagantech_dashcam_${Date.now()}.${recExtension}`;
-                    document.body.appendChild(a);
-                    a.click();
-                    setTimeout(() => {
-                        document.body.removeChild(a);
-                        window.URL.revokeObjectURL(downloadUrl);
-                    }, 150);
-
-                    if (recordingId) {
-                        const formData = new FormData();
-                        formData.append('video_file', videoBlob, `recording.${recExtension}`);
-                        formData.append('end_time', new Date().toISOString());
-
-                        try {
-                            const response = await fetch(`/api/recordings/videos/${recordingId}/`, {
-                                method: 'PATCH',
-                                body: formData
-                            });
-                            if (response.ok) {
-                                statusMessage.textContent = 'Failsafe upload complete!';
-                            } else {
-                                statusMessage.textContent = 'Downloaded to device memory.';
-                            }
-                        } catch (e) {
-                            console.error('Storage upload failure:', e);
-                            statusMessage.textContent = 'Saved to device storage!';
-                        }
-                    }
-                } else {
-                    statusMessage.textContent = 'Error compiling footage.';
-                }
-
-                recordBtn.innerHTML = '<i class="fas fa-video"></i>';
-                recordBtn.className = 'control-btn btn-start';
-                recordingStatus.textContent = 'STOPPED';
-                recordingDot.className = 'recording-dot';
-                stopBtn.disabled = true;
-                recordingId = null;
-                mediaRecorder = null;
-            }, 600);
-        }
-
-        // Voice recognition
-        function startVoiceRecognition() {
-            window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-            if (!window.SpeechRecognition) {
-                voiceHeardText.textContent = 'Voice unsupported';
-                return;
-            }
-            
-            speechRecognizer = new window.SpeechRecognition();
-            speechRecognizer.continuous = true;
-            speechRecognizer.interimResults = true;
-            speechRecognizer.lang = 'en-US';
-
-            speechRecognizer.onstart = () => {
-                voiceHeardText.innerHTML = 'Voice Control Active <span style="color:#00ff88;">(Say "SAVE")</span>';
-            };
-
-            speechRecognizer.onresult = (event) => {
-                let interim = '';
-                let final = '';
-                for (let i = event.resultIndex; i < event.results.length; ++i) {
-                    if (event.results[i].isFinal) final += event.results[i][0].transcript;
-                    else interim += event.results[i][0].transcript;
-                }
-                const heard = (final || interim).trim().toLowerCase();
-                if (heard) {
-                    voiceHeardText.innerHTML = `Heard: <strong style="color: #ffc107;">"${heard}"</strong>`;
-                    if (heard.includes('save') || heard.includes('help') || heard.includes('sos') || heard.includes('emergency')) {
-                        handleVoiceSOS();
-                    }
-                }
-            };
-
-            speechRecognizer.onend = () => {
-                if (isRecording && speechRecognizer) {
-                    try { speechRecognizer.start(); } catch(e) {}
-                }
-            };
-
-            try {
-                speechRecognizer.start();
-            } catch(e) {}
-        }
-
-        async function handleVoiceSOS() {
-            if (!isRecording) return;
-            await triggerEmergency();
-            await stopRecording();
-        }
-
-        async function triggerEmergency() {
-            if (!recordingId) return;
-
-            emergencyIndicator.style.display = 'block';
-            statusMessage.textContent = 'SOS TRANSMITTED!';
-            
-            try {
-                await fetch(`/api/recordings/videos/${recordingId}/add_emergency/`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        latitude: currentLat,
-                        longitude: currentLng,
-                        speed_kmh: currentSpeed,
-                        description: 'Voice activated physical SOS distress signal'
-                    })
-                });
-            } catch (e) {
-                console.error('Emergency request failed:', e);
-            }
-            
-            if (navigator.vibrate) navigator.vibrate([300, 100, 300, 100, 300]);
+            updateSpeedometer(0);
             
             setTimeout(() => {
-                emergencyIndicator.style.display = 'none';
-            }, 3000);
+                if(recordedChunks.length > 0) {
+                    const blob = new Blob(recordedChunks, { type: mediaRecorder ? mediaRecorder.mimeType : 'video/mp4' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); 
+                    a.href=url; 
+                    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+                    a.download=`dashcam_${timestamp}.${recExtension}`; 
+                    document.body.appendChild(a); 
+                    a.click(); 
+                    setTimeout(()=>{ document.body.removeChild(a); URL.revokeObjectURL(url); },500);
+                    
+                    if(recordingId && typeof recordingId === 'number') {
+                        const fd = new FormData(); 
+                        fd.append('video_file', blob, `recording.${recExtension}`); 
+                        fd.append('end_time', new Date().toISOString());
+                        fd.append('duration', Math.floor((Date.now() - recordingStartTime) / 1000));
+                        fetch(`/api/recordings/videos/${recordingId}/`, { method:'PATCH', body:fd }).catch(()=>{});
+                    }
+                    
+                    statusMessage.textContent = `✅ Saved ${(totalRecordedSize / (1024*1024)).toFixed(1)} MB`;
+                    setTimeout(() => {
+                        if (!isRecording) statusMessage.textContent = '✅ Ready';
+                    }, 3000);
+                } else {
+                    statusMessage.textContent = '⚠️ No data recorded';
+                }
+                
+                recordBtn.innerHTML='<i class="fas fa-video"></i>'; 
+                recordBtn.className='control-btn btn-start';
+                recordingStatus.textContent='STANDBY'; 
+                recordingDot.className='recording-dot'; 
+                stopBtn.disabled=true;
+                recordingId=null; 
+                mediaRecorder=null;
+                recordingStartTime = null;
+                voiceHeardText.textContent = '🎤 Say "SAVE"';
+            }, 500);
         }
 
-        // Initialize
-        statusMessage.textContent = 'Loading subsystems...';
-        initLeafletMap();
+        // ===== EMERGENCY =====
+        async function triggerEmergency() {
+            emergencyIndicator.style.display='block'; 
+            statusMessage.textContent='🚨 SOS TRIGGERED';
+            if(recordingId && typeof recordingId === 'number') {
+                try{ 
+                    await fetch(`/api/recordings/videos/${recordingId}/add_emergency/`, { 
+                        method:'POST', 
+                        headers:{'Content-Type':'application/json'}, 
+                        body:JSON.stringify({ 
+                            latitude:currentLat, 
+                            longitude:currentLng, 
+                            speed_kmh:currentSpeed, 
+                            description:'Voice activated emergency' 
+                        }) 
+                    }); 
+                } catch(e){}
+            }
+            if(navigator.vibrate) navigator.vibrate([300,100,300,100,300]);
+            setTimeout(()=>{ emergencyIndicator.style.display='none'; }, 4000);
+        }
+
+        // ===== INIT =====
+        statusMessage.textContent = '🚗 Loading...';
+        
+        buildSpeedometer();
+        initMap();
         startOSDDrawLoop();
         connectWebSocket();
         startLocationTracking();
+        
+        window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (window.SpeechRecognition) {
+            voiceHeardText.textContent = '🎤 Say "SAVE"';
+        } else {
+            voiceHeardText.textContent = '🔇 Voice unavailable';
+        }
 
-        // 5. Controls Auto-Hide & Double Tap Reappear System
+        window.addEventListener('resize', () => {
+            if (isRecording) startOSDDrawLoop();
+        });
 
-        startVoiceRecognition();
+        if (window.speechSynthesis) {
+            window.speechSynthesis.getVoices();
+            window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
+        }
 
-        // Controls Auto-Hide
-        let controlsTimeout = null;
-        const controlsBar = document.getElementById('controls-bar');
+        // Click outside to close dropdown
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.map-search-control')) {
+                autocompleteDropdown.style.display = 'none';
+            }
+        });
+
+        // ===== CONTROLS - ONLY ON DOUBLE CLICK =====
+        let lastTapTime = 0;
+        let tapTimeout = null;
         const phoneFrame = document.querySelector('.phone-frame');
 
-        function showControls() {
-            if (controlsTimeout) clearTimeout(controlsTimeout);
-            controlsBar.classList.remove('fade-out');
-            controlsTimeout = setTimeout(() => {
-                hideControls();
-            }, 4000);
-        }
-
-        function hideControls() {
-            controlsBar.classList.add('fade-out');
-        }
-
-        let lastTap = 0;
-        phoneFrame.addEventListener('touchend', function(e) {
-            if (e.target.closest('.control-btn') || e.target.closest('.back-link') || e.target.closest('#north-lock-btn')) {
-                showControls();
+        phoneFrame.addEventListener('touchend', (e) => {
+            if (e.target.closest('.control-btn') || e.target.closest('.back-link') || 
+                e.target.closest('#heading-lock-btn') || e.target.closest('.map-search-control') ||
+                e.target.closest('#controls-bar')) {
                 return;
             }
+            
             const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTap;
+            const tapLength = currentTime - lastTapTime;
+            
             if (tapLength < 300 && tapLength > 0) {
                 e.preventDefault();
-                showControls();
+                toggleControls();
+                lastTapTime = 0;
+                clearTimeout(tapTimeout);
+            } else {
+                lastTapTime = currentTime;
+                clearTimeout(tapTimeout);
+                tapTimeout = setTimeout(() => {
+                    lastTapTime = 0;
+                }, 400);
             }
-            lastTap = currentTime;
         });
 
-        phoneFrame.addEventListener('dblclick', function(e) {
-            if (e.target.closest('.control-btn') || e.target.closest('.back-link') || e.target.closest('#north-lock-btn')) {
+        phoneFrame.addEventListener('dblclick', (e) => {
+            if (e.target.closest('.control-btn') || e.target.closest('.back-link') || 
+                e.target.closest('#heading-lock-btn') || e.target.closest('.map-search-control') ||
+                e.target.closest('#controls-bar')) {
                 return;
             }
-            showControls();
+            toggleControls();
         });
 
-        controlsBar.addEventListener('click', function() {
-            showControls();
-        });
-
-        showControls();
+        hideControls();
     </script>
 </body>
 </html>

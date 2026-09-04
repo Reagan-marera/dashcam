@@ -12,6 +12,7 @@ urlpatterns = [
     # Frontend views
     path('', TemplateView.as_view(template_name='dashboard.html'), name='dashboard'),
     path('phone-app/', TemplateView.as_view(template_name='phone_app.html'), name='phone_app'),
+    path('recordings/', TemplateView.as_view(template_name='recordings.html'), name='recordings'),  # ✅ Added
     path('recording/<str:pk>/', TemplateView.as_view(template_name='recording_detail.html'), name='recording_detail'),
 ]
 

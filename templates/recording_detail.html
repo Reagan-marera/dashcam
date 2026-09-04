@@ -16,11 +16,34 @@
         overflow: hidden;
         border: 1px solid rgba(255,255,255,0.1);
         box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        position: relative;
     }
     .video-container video {
         width: 100%;
         max-height: 500px;
         display: block;
+        background: #000;
+    }
+    .video-overlay-info {
+        position: absolute;
+        bottom: 60px;
+        left: 15px;
+        right: 15px;
+        display: flex;
+        justify-content: space-between;
+        pointer-events: none;
+        z-index: 5;
+        font-family: monospace;
+        font-size: 12px;
+        color: rgba(255,255,255,0.8);
+        text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+    .video-overlay-info .left,
+    .video-overlay-info .right {
+        background: rgba(0,0,0,0.6);
+        padding: 4px 10px;
+        border-radius: 6px;
+        backdrop-filter: blur(4px);
     }
     .info-grid {
         display: grid;
@@ -48,7 +71,7 @@
         color: #fff;
     }
     .detections-list {
-        max-height: 300px;
+        max-height: 400px;
         overflow-y: auto;
     }
     .detection-item {
@@ -71,7 +94,89 @@
     .badge-motorcycle { background: #ffc107; color: black; }
     .badge-bus { background: #dc3545; }
     .badge-person { background: #6c757d; }
+    .badge-traffic { background: #fd7e14; }
     .badge-emergency { background: #dc3545; }
+    .badge-stop { background: #dc3545; }
+
+    .status-badge {
+        display: inline-block;
+        padding: 3px 12px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: 700;
+    }
+    .status-badge.normal { background: #28a745; color: white; }
+    .status-badge.emergency { background: #dc3545; color: white; animation: pulse-badge 1.5s infinite; }
+
+    @keyframes pulse-badge {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+    }
+
+    .upload-box {
+        background: rgba(255,255,255,0.02);
+        border: 2px dashed rgba(255,255,255,0.15);
+        border-radius: 12px;
+        padding: 20px;
+        margin-top: 15px;
+        transition: all 0.3s;
+    }
+    .upload-box:hover {
+        border-color: rgba(99,102,241,0.4);
+        background: rgba(99,102,241,0.05);
+    }
+    .upload-box.dragover {
+        border-color: #667eea;
+        background: rgba(99,102,241,0.1);
+    }
+
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        font-weight: 700;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.3s;
+        font-size: 13px;
+    }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+    .btn:active { transform: scale(0.95); }
+    .btn-primary { background: #667eea; color: white; }
+    .btn-success { background: #28a745; color: white; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn-warning { background: #ffc107; color: black; }
+    .btn-outline { background: transparent; border: 2px solid rgba(255,255,255,0.2); color: white; }
+    .btn-outline:hover { background: rgba(255,255,255,0.1); }
+
+    .card {
+        background: rgba(255,255,255,0.03);
+        border-radius: 12px;
+        padding: 20px;
+        border: 1px solid rgba(255,255,255,0.06);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+
+    .detection-canvas {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        z-index: 10;
+    }
+
+    .speed-chart {
+        height: 80px;
+        width: 100%;
+        margin-top: 10px;
+        background: rgba(0,0,0,0.3);
+        border-radius: 8px;
+        padding: 5px;
+    }
 
     @media (max-width: 768px) {
         .detail-grid {
@@ -80,196 +185,316 @@
         .info-grid {
             grid-template-columns: 1fr;
         }
+        .video-container video {
+            max-height: 300px;
+        }
+        .btn {
+            padding: 8px 14px;
+            font-size: 12px;
+        }
+    }
+
+    /* Scrollbar styling */
+    .detections-list::-webkit-scrollbar {
+        width: 6px;
+    }
+    .detections-list::-webkit-scrollbar-track {
+        background: rgba(255,255,255,0.05);
+        border-radius: 3px;
+    }
+    .detections-list::-webkit-scrollbar-thumb {
+        background: rgba(99,102,241,0.5);
+        border-radius: 3px;
+    }
+    .detections-list::-webkit-scrollbar-thumb:hover {
+        background: rgba(99,102,241,0.7);
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div id="recordingDetail" style="margin-top: 20px;">
+<div id="recordingDetail" style="margin-top: 20px; max-width: 1400px; margin-left: auto; margin-right: auto; padding: 0 15px;">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 15px;">
-        <h2 style="color: #fff; font-weight: 700;"><i class="fas fa-video" style="color: #667eea;"></i> Recording Details</h2>
-        <button class="btn" onclick="downloadVideo()" style="padding: 10px 20px; background: #28a745; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px; transition: all 0.3s;">
-            <i class="fas fa-download"></i> Download Local File
-        </button>
+        <h2 style="color: #fff; font-weight: 700; display: flex; align-items: center; gap: 12px;">
+            <i class="fas fa-video" style="color: #667eea;"></i> 
+            Recording Details
+            <span id="statusBadge" style="font-size: 14px;"></span>
+        </h2>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <button class="btn btn-success" onclick="downloadVideo()">
+                <i class="fas fa-download"></i> Download
+            </button>
+            <button class="btn btn-danger" onclick="deleteRecording()" style="background: #dc3545;">
+                <i class="fas fa-trash"></i> Delete
+            </button>
+            <a href="/" class="btn btn-outline">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
+        </div>
     </div>
 
     <div class="detail-grid">
+        <!-- Video Player -->
         <div class="card">
             <h3 style="color: #fff; margin-bottom: 15px;"><i class="far fa-play-circle" style="color: #667eea;"></i> Playback</h3>
-            <div class="video-container" style="position: relative;">
-                <video id="videoPlayer" controls style="width: 100%; display: block;">
-                    <source src="" type="video/webm">
+            <div class="video-container">
+                <video id="videoPlayer" controls preload="metadata">
                     <source src="" type="video/mp4">
+                    <source src="" type="video/webm">
                     Your browser does not support the video tag.
                 </video>
-                <canvas id="detectionCanvas" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10;"></canvas>
+                <canvas id="detectionCanvas" class="detection-canvas"></canvas>
+                <div class="video-overlay-info">
+                    <span class="left" id="videoTimeInfo">00:00 / 00:00</span>
+                    <span class="right" id="videoSpeedInfo">⏱ 0 km/h</span>
+                </div>
             </div>
 
-            <!-- Manual File Upload Box -->
-            <div id="uploadBox" class="card" style="margin-top: 20px; display: none; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.15); border-radius: 12px; padding: 15px;">
-                <h4 style="margin-bottom: 10px; color: #fff; font-size: 14px;"><i class="fas fa-upload" style="color: #34c759;"></i> Manual Video File Upload / Replace</h4>
-                <p style="font-size: 12px; color: #aaa; margin-bottom: 15px;">If the video was not automatically sync'd from your phone, you can select and upload the downloaded video file here.</p>
+            <!-- Upload Box -->
+            <div class="upload-box" id="uploadBox">
+                <h4 style="margin-bottom: 8px; color: #fff; font-size: 14px;">
+                    <i class="fas fa-upload" style="color: #667eea;"></i> Upload Video File
+                </h4>
+                <p style="font-size: 12px; color: #aaa; margin-bottom: 12px;">
+                    If the video wasn't automatically synced, upload it here.
+                </p>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <input type="file" id="fileUploadInput" accept="video/*" style="flex: 1; padding: 8px; font-size: 13px; color: #fff; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
-                    <button onclick="uploadVideoFile()" class="btn" style="padding: 10px 20px; background: #34c759; border: none; border-radius: 8px; color: white; cursor: pointer; font-weight: 700;">Upload File</button>
+                    <input type="file" id="fileUploadInput" accept="video/*" 
+                           style="flex: 1; padding: 8px; font-size: 13px; color: #fff; background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px;">
+                    <button onclick="uploadVideoFile()" class="btn btn-primary">
+                        <i class="fas fa-cloud-upload-alt"></i> Upload
+                    </button>
                 </div>
                 <div id="uploadStatus" style="margin-top: 10px; font-size: 12px; font-weight: 600;"></div>
+                <div id="uploadProgress" style="margin-top: 8px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; display: none;">
+                    <div id="progressBar" style="height: 100%; width: 0%; background: linear-gradient(90deg, #667eea, #764ba2); transition: width 0.3s;"></div>
+                </div>
             </div>
 
+            <!-- Video Info -->
             <div class="info-grid" id="videoInfo">
                 <div class="info-item">
-                    <label>Duration</label>
+                    <label><i class="far fa-clock"></i> Duration</label>
                     <value id="duration">--</value>
                 </div>
                 <div class="info-item">
-                    <label>File Size</label>
+                    <label><i class="fas fa-weight-hanging"></i> File Size</label>
                     <value id="fileSize">--</value>
                 </div>
                 <div class="info-item">
-                    <label>Date</label>
+                    <label><i class="far fa-calendar-alt"></i> Date</label>
                     <value id="recordDate">--</value>
                 </div>
                 <div class="info-item">
-                    <label>Status</label>
+                    <label><i class="fas fa-flag"></i> Status</label>
                     <value id="recordStatus">--</value>
                 </div>
             </div>
+
+            <!-- Speed Chart -->
+            <div style="margin-top: 15px;">
+                <label style="color: #aaa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 6px;">
+                    <i class="fas fa-chart-line"></i> Speed Profile
+                </label>
+                <canvas id="speedChart" class="speed-chart"></canvas>
+            </div>
         </div>
 
-        <div class="card">
-            <h3 style="color: #fff; margin-bottom: 15px;"><i class="fas fa-info-circle" style="color: #667eea;"></i> Metadata</h3>
-            <div class="info-grid">
-                <div class="info-item" style="grid-column: span 2;">
-                    <label>Driver</label>
-                    <value id="driverName">--</value>
+        <!-- Metadata & Detections -->
+        <div>
+            <!-- Metadata -->
+            <div class="card" style="margin-bottom: 20px;">
+                <h3 style="color: #fff; margin-bottom: 15px;"><i class="fas fa-info-circle" style="color: #667eea;"></i> Metadata</h3>
+                <div class="info-grid">
+                    <div class="info-item" style="grid-column: span 2;">
+                        <label><i class="fas fa-user"></i> Driver</label>
+                        <value id="driverName">--</value>
+                    </div>
+                    <div class="info-item" style="grid-column: span 2;">
+                        <label><i class="fas fa-car"></i> Vehicle</label>
+                        <value id="vehicleReg">--</value>
+                    </div>
+                    <div class="info-item">
+                        <label><i class="fas fa-tachometer-alt"></i> Avg Speed</label>
+                        <value id="avgSpeed">-- km/h</value>
+                    </div>
+                    <div class="info-item">
+                        <label><i class="fas fa-rocket"></i> Max Speed</label>
+                        <value id="maxSpeed">-- km/h</value>
+                    </div>
+                    <div class="info-item" style="grid-column: span 2;">
+                        <label><i class="fas fa-map-pin"></i> Start Location</label>
+                        <value id="startLocation">--</value>
+                    </div>
+                    <div class="info-item" style="grid-column: span 2;">
+                        <label><i class="fas fa-map-marked-alt"></i> GPS Points</label>
+                        <value id="gpsCount">--</value>
+                    </div>
                 </div>
-                <div class="info-item" style="grid-column: span 2;">
-                    <label>Vehicle</label>
-                    <value id="vehicleReg">--</value>
+            </div>
+
+            <!-- AI Detections -->
+            <div class="card">
+                <h3 style="color: #fff; margin-bottom: 15px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+                    <span><i class="fas fa-robot" style="color: #667eea;"></i> AI Detections</span>
+                    <button onclick="processAI()" class="btn btn-primary" style="padding: 6px 16px; font-size: 12px;">
+                        <i class="fas fa-robot"></i> Process
+                    </button>
+                </h3>
+                <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                    <span id="aiStatus" style="font-size: 13px; font-weight: 600; color: #aaa;"></span>
+                    <span id="detectionCount" style="font-size: 12px; color: #667eea;"></span>
                 </div>
-                <div class="info-item">
-                    <label>Avg Speed</label>
-                    <value id="avgSpeed">-- km/h</value>
-                </div>
-                <div class="info-item">
-                    <label>Max Speed</label>
-                    <value id="maxSpeed">-- km/h</value>
-                </div>
-                <div class="info-item" style="grid-column: span 2;">
-                    <label>Start Location</label>
-                    <value id="startLocation">--</value>
-                </div>
-                <div class="info-item" style="grid-column: span 2;">
-                    <label>GPS Points Captured</label>
-                    <value id="gpsCount">--</value>
+                <div class="detections-list" id="detectionsList">
+                    <div style="text-align: center; padding: 30px; color: #aaa; background: rgba(255,255,255,0.02); border-radius: 8px;">
+                        <i class="fas fa-robot" style="font-size: 30px; display: block; margin-bottom: 10px; color: #667eea;"></i>
+                        Click "Process" to analyze with AI
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Route Travelled Map -->
+    <!-- Route Map -->
     <div class="card" style="margin-top: 20px;">
         <h3 style="color: #fff; margin-bottom: 15px;"><i class="fas fa-map-marked-alt" style="color: #667eea;"></i> Route Travelled</h3>
         <div id="map" style="width: 100%; height: 350px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.1); z-index: 1;"></div>
-    </div>
-
-    <div class="card" style="margin-top: 20px;">
-        <h3 style="color: #fff; margin-bottom: 15px;"><i class="fas fa-robot" style="color: #667eea;"></i> AI Detections</h3>
-        <div style="margin-bottom: 15px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
-            <button onclick="processAI()" class="btn" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 8px;">
-                <i class="fas fa-robot"></i> Process with AI
-            </button>
-            <span id="aiStatus" style="font-size: 13px; font-weight: 600; color: #aaa;"></span>
-        </div>
-        <div class="detections-list" id="detectionsList">
-            <div style="text-align: center; padding: 30px; color: #aaa; background: rgba(255,255,255,0.02); border-radius: 8px;">
-                No detections available. Click "Process with AI" to analyze.
-            </div>
+        <div style="margin-top: 10px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 12px; color: #aaa;">
+            <span><span style="color: #34d399;">●</span> Start</span>
+            <span><span style="color: #ef4444;">●</span> End</span>
+            <span><span style="color: #10b981;">━</span> Route</span>
+            <span id="routeStats"></span>
         </div>
     </div>
 </div>
 
 <script>
+    // ===== STATE =====
     let recordingId = window.location.pathname.split('/').filter(Boolean).pop();
-
-    // Leaflet map and canvas overlay state
     let map = null;
     let pathPolyline = null;
     let startMarker = null;
     let endMarker = null;
+    let allDetections = [];
+    let gpsData = [];
+    let speedData = [];
+    let isProcessing = false;
 
+    // ===== DOM REFS =====
     const video = document.getElementById('videoPlayer');
     const detCanvas = document.getElementById('detectionCanvas');
     const detCtx = detCanvas.getContext('2d');
-    let allDetections = [];
+    const speedChartCanvas = document.getElementById('speedChart');
+    const speedCtx = speedChartCanvas.getContext('2d');
 
+    // ===== VIDEO OVERLAY =====
     function resizeDetectionCanvas() {
-        detCanvas.width = video.videoWidth || 1280;
-        detCanvas.height = video.videoHeight || 720;
+        const rect = video.getBoundingClientRect();
+        if (rect.width === 0) return;
+        detCanvas.width = rect.width * 2;
+        detCanvas.height = rect.height * 2;
+        detCanvas.style.width = rect.width + 'px';
+        detCanvas.style.height = rect.height + 'px';
     }
 
     video.addEventListener('loadedmetadata', resizeDetectionCanvas);
+    video.addEventListener('loadeddata', resizeDetectionCanvas);
     window.addEventListener('resize', resizeDetectionCanvas);
 
+    // Video time info
+    video.addEventListener('timeupdate', () => {
+        const current = formatTime(video.currentTime);
+        const total = formatTime(video.duration || 0);
+        document.getElementById('videoTimeInfo').textContent = `${current} / ${total}`;
+        
+        // Find matching speed for current time
+        if (gpsData && gpsData.length > 0) {
+            const currentTime = video.currentTime;
+            const fps = 15;
+            const frame = Math.floor(currentTime * fps);
+            let closest = null;
+            let closestDist = Infinity;
+            gpsData.forEach(p => {
+                const dist = Math.abs(p.timestamp - frame);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    closest = p;
+                }
+            });
+            if (closest && closestDist < 3) {
+                document.getElementById('videoSpeedInfo').textContent = `⏱ ${Math.round(closest.speed || 0)} km/h`;
+            }
+        }
+    });
+
+    function formatTime(seconds) {
+        if (!seconds || isNaN(seconds)) return '00:00';
+        const mins = Math.floor(seconds / 60);
+        const secs = Math.floor(seconds % 60);
+        return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    }
+
+    // ===== DRAW DETECTIONS =====
     function drawDetections() {
+        const rect = video.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        
+        detCtx.clearRect(0, 0, detCanvas.width, detCanvas.height);
+        
         if (!allDetections || allDetections.length === 0) return;
 
-        detCtx.clearRect(0, 0, detCanvas.width, detCanvas.height);
-
-        if (detCanvas.width !== video.videoWidth || detCanvas.height !== video.videoHeight) {
-            resizeDetectionCanvas();
-        }
-
+        const scaleX = detCanvas.width / rect.width;
+        const scaleY = detCanvas.height / rect.height;
+        const currentTime = video.currentTime;
         const fps = 15;
-        const currentFrame = Math.floor(video.currentTime * fps);
-        const detectionFrame = Math.floor(currentFrame / 15) * 15;
+        const currentFrame = Math.floor(currentTime * fps);
+        const frameWindow = 2;
 
-        const frameDets = allDetections.filter(d => d.frame === detectionFrame);
+        const frameDets = allDetections.filter(d => 
+            Math.abs(d.frame - currentFrame) < frameWindow
+        );
 
         if (frameDets.length > 0) {
-            const originalWidth = video.videoWidth || 1280;
-            const originalHeight = video.videoHeight || 720;
-            const scale = 640 / originalWidth;
-            const modelHeight = originalHeight * scale;
-
-            const finalScaleX = detCanvas.width / 640;
-            const finalScaleY = detCanvas.height / modelHeight;
-
             frameDets.forEach(det => {
                 const [x1, y1, x2, y2] = det.bbox;
-                const rx1 = x1 * finalScaleX;
-                const ry1 = y1 * finalScaleY;
-                const rx2 = x2 * finalScaleX;
-                const ry2 = y2 * finalScaleY;
-                const rw = rx2 - rx1;
-                const rh = ry2 - ry1;
+                const rx1 = x1 * scaleX * (rect.width / 640);
+                const ry1 = y1 * scaleY * (rect.height / 360);
+                const rw = (x2 - x1) * scaleX * (rect.width / 640);
+                const rh = (y2 - y1) * scaleY * (rect.height / 360);
 
                 let color = '#34c759';
                 if (det.class === 'person') color = '#007bff';
-                if (det.class === 'truck' || det.class === 'bus') color = '#dc3545';
+                if (['truck', 'bus'].includes(det.class)) color = '#dc3545';
                 if (det.class === 'motorcycle') color = '#ffc107';
+                if (det.class === 'traffic light') color = '#fd7e14';
+                if (det.class === 'stop sign') color = '#dc3545';
 
                 detCtx.strokeStyle = color;
-                detCtx.lineWidth = 3;
+                detCtx.lineWidth = 2.5;
+                detCtx.shadowColor = color;
+                detCtx.shadowBlur = 10;
                 detCtx.strokeRect(rx1, ry1, rw, rh);
+                detCtx.shadowBlur = 0;
 
+                // Label
+                const label = `${det.class.toUpperCase()} ${(det.confidence * 100).toFixed(0)}%`;
+                detCtx.font = 'bold 11px -apple-system, BlinkMacSystemFont, sans-serif';
+                const metrics = detCtx.measureText(label);
+                const pad = 6;
+                detCtx.fillStyle = 'rgba(0,0,0,0.7)';
+                detCtx.fillRect(rx1, ry1 - 20 - pad, metrics.width + pad * 2, 20 + pad);
                 detCtx.fillStyle = color;
-                detCtx.font = 'bold 14px Arial, sans-serif';
-                const labelText = `${det.class.toUpperCase()} (${(det.confidence * 100).toFixed(0)}%)`;
-                const labelWidth = detCtx.measureText(labelText).width + 10;
-                detCtx.fillRect(rx1, ry1 - 22, labelWidth, 22);
+                detCtx.fillText(label, rx1 + pad, ry1 - 6);
 
-                detCtx.fillStyle = '#ffffff';
-                detCtx.fillText(labelText, rx1 + 5, ry1 - 6);
-
+                // License plate
                 if (det.license_plate) {
-                    const plateText = `🔢 PLATE: ${det.license_plate}`;
-                    const plateWidth = detCtx.measureText(plateText).width + 10;
-                    detCtx.fillStyle = '#ffffff';
-                    detCtx.fillRect(rx1, ry1 + rh, plateWidth, 22);
-                    detCtx.fillStyle = '#000000';
-                    detCtx.font = 'bold 12px Arial, sans-serif';
-                    detCtx.fillText(plateText, rx1 + 5, ry1 + rh + 16);
+                    const plateText = `🔢 ${det.license_plate}`;
+                    detCtx.font = 'bold 10px monospace';
+                    const pm = detCtx.measureText(plateText);
+                    detCtx.fillStyle = 'rgba(0,0,0,0.7)';
+                    detCtx.fillRect(rx1, ry1 + rh, pm.width + pad * 2, 18);
+                    detCtx.fillStyle = '#fff';
+                    detCtx.fillText(plateText, rx1 + pad, ry1 + rh + 14);
                 }
             });
         }
@@ -286,62 +511,179 @@
         requestAnimationFrame(tick);
     });
 
+    // ===== SPEED CHART =====
+    function drawSpeedChart(speeds) {
+        const rect = speedChartCanvas.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        
+        const dpr = window.devicePixelRatio || 1;
+        speedChartCanvas.width = rect.width * dpr;
+        speedChartCanvas.height = rect.height * dpr;
+        speedChartCanvas.style.width = rect.width + 'px';
+        speedChartCanvas.style.height = rect.height + 'px';
+        speedCtx.scale(dpr, dpr);
+
+        const w = rect.width;
+        const h = rect.height;
+        const pad = { top: 8, bottom: 12, left: 8, right: 8 };
+        const chartW = w - pad.left - pad.right;
+        const chartH = h - pad.top - pad.bottom;
+
+        speedCtx.clearRect(0, 0, w, h);
+
+        if (!speeds || speeds.length < 2) {
+            speedCtx.fillStyle = 'rgba(255,255,255,0.08)';
+            speedCtx.font = '11px sans-serif';
+            speedCtx.textAlign = 'center';
+            speedCtx.fillText('No speed data', w/2, h/2 + 4);
+            return;
+        }
+
+        const maxSpeed = Math.max(10, ...speeds.map(s => s.speed || 0));
+        
+        // Grid
+        speedCtx.strokeStyle = 'rgba(255,255,255,0.04)';
+        speedCtx.lineWidth = 0.5;
+        for (let i = 0; i <= 3; i++) {
+            const y = pad.top + (chartH / 3) * i;
+            speedCtx.beginPath();
+            speedCtx.moveTo(pad.left, y);
+            speedCtx.lineTo(w - pad.right, y);
+            speedCtx.stroke();
+        }
+
+        // Line
+        speedCtx.strokeStyle = '#10b981';
+        speedCtx.lineWidth = 2;
+        speedCtx.beginPath();
+        speeds.forEach((point, i) => {
+            const x = pad.left + (i / (speeds.length - 1)) * chartW;
+            const y = pad.top + chartH - ((point.speed || 0) / maxSpeed) * chartH;
+            if (i === 0) speedCtx.moveTo(x, y);
+            else speedCtx.lineTo(x, y);
+        });
+        speedCtx.stroke();
+
+        // Fill gradient
+        const grad = speedCtx.createLinearGradient(0, pad.top, 0, h - pad.bottom);
+        grad.addColorStop(0, 'rgba(16, 185, 129, 0.25)');
+        grad.addColorStop(1, 'rgba(16, 185, 129, 0)');
+        speedCtx.fillStyle = grad;
+        speedCtx.beginPath();
+        speeds.forEach((point, i) => {
+            const x = pad.left + (i / (speeds.length - 1)) * chartW;
+            const y = pad.top + chartH - ((point.speed || 0) / maxSpeed) * chartH;
+            if (i === 0) speedCtx.moveTo(x, y);
+            else speedCtx.lineTo(x, y);
+        });
+        const lastX = pad.left + chartW;
+        speedCtx.lineTo(lastX, pad.top + chartH);
+        speedCtx.lineTo(pad.left, pad.top + chartH);
+        speedCtx.closePath();
+        speedCtx.fill();
+
+        // Labels
+        speedCtx.fillStyle = 'rgba(255,255,255,0.3)';
+        speedCtx.font = '8px monospace';
+        speedCtx.textAlign = 'right';
+        for (let i = 0; i <= 3; i++) {
+            const val = Math.round(maxSpeed - (maxSpeed / 3) * i);
+            const y = pad.top + (chartH / 3) * i + 3;
+            speedCtx.fillText(`${val}`, pad.left - 2, y);
+        }
+
+        // Average line
+        const avg = speeds.reduce((sum, p) => sum + (p.speed || 0), 0) / speeds.length;
+        const avgY = pad.top + chartH - (avg / maxSpeed) * chartH;
+        speedCtx.strokeStyle = 'rgba(255,255,255,0.12)';
+        speedCtx.setLineDash([3, 4]);
+        speedCtx.lineWidth = 1;
+        speedCtx.beginPath();
+        speedCtx.moveTo(pad.left, avgY);
+        speedCtx.lineTo(w - pad.right, avgY);
+        speedCtx.stroke();
+        speedCtx.setLineDash([]);
+
+        speedCtx.fillStyle = 'rgba(255,255,255,0.2)';
+        speedCtx.font = '7px monospace';
+        speedCtx.textAlign = 'left';
+        speedCtx.fillText(`avg ${Math.round(avg)}`, pad.left + 2, avgY - 2);
+    }
+
+    // ===== MAP =====
     function initMap(gpsPoints) {
         if (!map) {
-            map = L.map('map', { zoomControl: false }).setView([0, 0], 2);
+            map = L.map('map', { zoomControl: false, attributionControl: false }).setView([0, 0], 2);
             L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
                 attribution: '© OpenStreetMap, © CartoDB'
             }).addTo(map);
             L.control.zoom({ position: 'bottomright' }).addTo(map);
         }
 
-        if (gpsPoints && gpsPoints.length > 0) {
-            const coords = gpsPoints.map(p => [parseFloat(p.latitude), parseFloat(p.longitude)]);
+        // Clear old layers
+        if (pathPolyline) map.removeLayer(pathPolyline);
+        if (startMarker) map.removeLayer(startMarker);
+        if (endMarker) map.removeLayer(endMarker);
 
-            if (pathPolyline) map.removeLayer(pathPolyline);
-            if (startMarker) map.removeLayer(startMarker);
-            if (endMarker) map.removeLayer(endMarker);
-
-            pathPolyline = L.polyline(coords, {
-                color: '#10b981',
-                weight: 5,
-                opacity: 0.9,
-                smoothFactor: 1
-            }).addTo(map);
-
-            const startIcon = L.divIcon({
-                className: 'start-icon',
-                html: '<div style="background: #34d399; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px #34d399;"></div>',
-                iconSize: [12, 12],
-                iconAnchor: [6, 6]
-            });
-            startMarker = L.marker(coords[0], { icon: startIcon }).addTo(map)
-                .bindPopup('<b>Start Location</b>');
-
-            const endIcon = L.divIcon({
-                className: 'end-icon',
-                html: '<div style="background: #ef4444; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 10px #ef4444;"></div>',
-                iconSize: [12, 12],
-                iconAnchor: [6, 6]
-            });
-            endMarker = L.marker(coords[coords.length - 1], { icon: endIcon }).addTo(map)
-                .bindPopup('<b>End Location</b>');
-
-            map.fitBounds(pathPolyline.getBounds(), { padding: [30, 30] });
-        } else {
+        if (!gpsPoints || gpsPoints.length < 2) {
             map.setView([-1.286389, 36.817223], 13);
+            document.getElementById('routeStats').textContent = '📏 No GPS data';
+            return;
         }
+
+        const coords = gpsPoints.map(p => [parseFloat(p.latitude), parseFloat(p.longitude)]);
+
+        pathPolyline = L.polyline(coords, {
+            color: '#10b981',
+            weight: 4,
+            opacity: 0.9,
+            smoothFactor: 1,
+            lineJoin: 'round'
+        }).addTo(map);
+
+        const startIcon = L.divIcon({
+            className: 'start-icon',
+            html: '<div style="background: #34d399; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 20px rgba(52,211,153,0.4);"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        });
+        startMarker = L.marker(coords[0], { icon: startIcon }).addTo(map)
+            .bindPopup('<b>📍 Start</b><br>' + coords[0].join(', '));
+
+        const endIcon = L.divIcon({
+            className: 'end-icon',
+            html: '<div style="background: #ef4444; width: 14px; height: 14px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 20px rgba(239,68,68,0.4);"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+        });
+        endMarker = L.marker(coords[coords.length - 1], { icon: endIcon }).addTo(map)
+            .bindPopup('<b>🏁 End</b><br>' + coords[coords.length - 1].join(', '));
+
+        map.fitBounds(pathPolyline.getBounds(), { padding: [40, 40] });
+
+        // Calculate distance
+        let total = 0;
+        for (let i = 1; i < coords.length; i++) {
+            const R = 6371;
+            const lat1 = coords[i-1][0] * Math.PI / 180;
+            const lat2 = coords[i][0] * Math.PI / 180;
+            const dLat = (coords[i][0] - coords[i-1][0]) * Math.PI / 180;
+            const dLng = (coords[i][1] - coords[i-1][1]) * Math.PI / 180;
+            const a = Math.sin(dLat/2)**2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng/2)**2;
+            total += 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+        document.getElementById('routeStats').textContent = `📏 ${total.toFixed(1)} km`;
     }
 
-    // Load recording details
+    // ===== LOAD RECORDING =====
     async function loadRecording() {
         try {
             const response = await fetch(`/api/recordings/videos/${recordingId}/`);
+            if (!response.ok) throw new Error('Failed to load');
             const data = await response.json();
             
             // Video
             const uploadBox = document.getElementById('uploadBox');
-
             if (data.video_file) {
                 video.src = data.video_file;
                 video.load();
@@ -350,16 +692,28 @@
                 uploadBox.style.display = 'block';
             }
             
+            // Status badge
+            const statusBadge = document.getElementById('statusBadge');
+            if (data.is_emergency) {
+                statusBadge.innerHTML = '<span class="status-badge emergency">🚨 EMERGENCY</span>';
+            } else {
+                statusBadge.innerHTML = '<span class="status-badge normal">✅ Normal</span>';
+            }
+            
             // Info
             document.getElementById('duration').textContent = data.duration_seconds ? 
                 `${Math.floor(data.duration_seconds/60)}m ${data.duration_seconds%60}s` : '--';
             document.getElementById('fileSize').textContent = data.file_size_mb ? 
                 `${data.file_size_mb.toFixed(1)} MB` : '0.0 MB';
-            document.getElementById('recordDate').textContent = new Date(data.date).toLocaleDateString();
+            document.getElementById('recordDate').textContent = data.date ? 
+                new Date(data.date).toLocaleString() : '--';
 
             const rStatus = document.getElementById('recordStatus');
-            rStatus.textContent = data.is_emergency ? '🚨 Emergency' : '✅ Normal';
-            rStatus.style.color = data.is_emergency ? '#ff3b30' : '#34c759';
+            if (data.is_emergency) {
+                rStatus.innerHTML = '<span style="color: #ff3b30;">🚨 Emergency</span>';
+            } else {
+                rStatus.innerHTML = '<span style="color: #34c759;">✅ Normal</span>';
+            }
             
             // Metadata
             document.getElementById('driverName').textContent = data.driver_name || '--';
@@ -370,11 +724,23 @@
                 `${data.max_speed_kmh.toFixed(1)} km/h` : '0.0 km/h';
             document.getElementById('startLocation').textContent = 
                 data.start_latitude && data.start_longitude ? 
-                `${parseFloat(data.start_latitude).toFixed(6)}, ${parseFloat(data.start_longitude).toFixed(6)}` : '--';
+                `${parseFloat(data.start_latitude).toFixed(5)}, ${parseFloat(data.start_longitude).toFixed(5)}` : '--';
             document.getElementById('gpsCount').textContent = data.gps_points ? data.gps_points.length : '0';
             
-            // Initialize Leaflet Map with synced locations
-            initMap(data.gps_points);
+            // Store GPS data
+            gpsData = data.gps_points || [];
+            
+            // Speed data for chart
+            if (gpsData.length > 0) {
+                speedData = gpsData.map(p => ({
+                    speed: p.speed || 0,
+                    timestamp: p.timestamp || 0
+                }));
+                setTimeout(() => drawSpeedChart(speedData), 200);
+            }
+            
+            // Initialize map
+            initMap(gpsData);
 
             // Detections
             if (data.detections && data.detections.detections) {
@@ -382,21 +748,30 @@
                 displayDetections(data.detections);
                 document.getElementById('aiStatus').textContent = '✅ Processed';
                 document.getElementById('aiStatus').style.color = '#34c759';
+                document.getElementById('detectionCount').textContent = 
+                    `${data.detections.detections.length} objects detected`;
             } else {
                 allDetections = [];
-                document.getElementById('aiStatus').textContent = 'Not processed';
+                document.getElementById('aiStatus').textContent = '⏳ Not processed';
                 document.getElementById('aiStatus').style.color = '#ff9500';
+                document.getElementById('detectionCount').textContent = '';
             }
             
+            // Resize canvas after load
+            setTimeout(resizeDetectionCanvas, 100);
+
         } catch (error) {
             console.error('Error loading recording:', error);
+            document.getElementById('recordStatus').textContent = '❌ Error loading';
         }
     }
 
-    // Manual Upload Video File Function
+    // ===== UPLOAD VIDEO =====
     async function uploadVideoFile() {
         const fileInput = document.getElementById('fileUploadInput');
         const statusDiv = document.getElementById('uploadStatus');
+        const progressDiv = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('progressBar');
 
         if (!fileInput.files || fileInput.files.length === 0) {
             statusDiv.textContent = '❌ Please select a video file first.';
@@ -407,78 +782,113 @@
         const file = fileInput.files[0];
         statusDiv.textContent = '⏳ Uploading video file...';
         statusDiv.style.color = '#ff9500';
+        progressDiv.style.display = 'block';
+        progressBar.style.width = '0%';
 
         const formData = new FormData();
         formData.append('video_file', file);
 
         try {
-            const response = await fetch(`/api/recordings/videos/${recordingId}/`, {
-                method: 'PATCH',
-                body: formData
-            });
-
-            if (response.ok) {
-                statusDiv.textContent = '✅ Video file uploaded successfully! Refreshing player...';
-                statusDiv.style.color = '#34c759';
-                setTimeout(() => {
-                    location.reload();
-                }, 1500);
-            } else {
-                const err = await response.json();
-                statusDiv.textContent = '❌ Upload failed: ' + (err.error || 'Server error');
+            const xhr = new XMLHttpRequest();
+            xhr.open('PATCH', `/api/recordings/videos/${recordingId}/`, true);
+            
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percent = (e.loaded / e.total) * 100;
+                    progressBar.style.width = percent + '%';
+                }
+            };
+            
+            xhr.onload = () => {
+                progressDiv.style.display = 'none';
+                if (xhr.status === 200) {
+                    statusDiv.textContent = '✅ Video file uploaded successfully! Refreshing...';
+                    statusDiv.style.color = '#34c759';
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    try {
+                        const err = JSON.parse(xhr.responseText);
+                        statusDiv.textContent = '❌ Upload failed: ' + (err.error || 'Server error');
+                    } catch {
+                        statusDiv.textContent = '❌ Upload failed: ' + xhr.statusText;
+                    }
+                    statusDiv.style.color = '#ff3b30';
+                }
+            };
+            
+            xhr.onerror = () => {
+                progressDiv.style.display = 'none';
+                statusDiv.textContent = '❌ Network error. Please try again.';
                 statusDiv.style.color = '#ff3b30';
-            }
+            };
+            
+            xhr.send(formData);
+            
         } catch (error) {
-            console.error('Error uploading:', error);
-            statusDiv.textContent = '❌ Network connection error.';
+            progressDiv.style.display = 'none';
+            statusDiv.textContent = '❌ Error: ' + error.message;
             statusDiv.style.color = '#ff3b30';
         }
     }
 
-    // Display detections
+    // ===== DISPLAY DETECTIONS =====
     function displayDetections(detections) {
         const container = document.getElementById('detectionsList');
         
         if (!detections.detections || detections.detections.length === 0) {
-            container.innerHTML = '<div style="text-align: center; padding: 20px; color: #aaa;">No objects detected</div>';
+            container.innerHTML = '<div style="text-align: center; padding: 30px; color: #aaa;">No objects detected</div>';
             return;
         }
         
-        // Show summary
+        // Summary
         let html = '<div style="padding: 12px; background: rgba(255,255,255,0.05); border-radius: 8px; margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">';
-        html += '<strong style="color: #fff; font-size: 13px; margin-right: 5px;">Summary:</strong> ';
+        html += '<strong style="color: #fff; font-size: 13px; margin-right: 5px;">📊 Summary:</strong> ';
         if (detections.object_counts) {
             Object.entries(detections.object_counts).forEach(([key, value]) => {
-                html += `<span class="badge badge-${key}">${key}: ${value}</span> `;
+                const badgeClass = key.toLowerCase().replace(' ', '-');
+                html += `<span class="badge badge-${badgeClass}">${key}: ${value}</span> `;
             });
         }
-        html += `</div><hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.1); margin-bottom: 15px;">`;
+        html += `</div><hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.05); margin-bottom: 15px;">`;
         
-        // Show detections
-        detections.detections.slice(0, 20).forEach(det => {
+        // Detections list
+        const sorted = [...detections.detections].sort((a, b) => (b.confidence || 0) - (a.confidence || 0));
+        sorted.slice(0, 30).forEach(det => {
+            const badgeClass = det.class.toLowerCase().replace(' ', '-');
+            const conf = (det.confidence * 100).toFixed(0);
+            const color = conf > 70 ? '#34c759' : conf > 40 ? '#ff9500' : '#ff3b30';
             html += `<div class="detection-item">
                 <span>
-                    <span class="badge badge-${det.class}">${det.class}</span>
-                    ${det.license_plate ? `<span style="font-weight: bold; background: #fff; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 10px;">🔢 ${det.license_plate}</span>` : ''}
-                    <small style="color:#aaa; margin-left: 10px;">Frame ${det.frame}</small>
+                    <span class="badge badge-${badgeClass}">${det.class}</span>
+                    ${det.license_plate ? `<span style="font-weight: bold; background: #fff; color: #000; padding: 2px 8px; border-radius: 4px; font-size: 10px; margin-left: 8px;">🔢 ${det.license_plate}</span>` : ''}
+                    <small style="color:#666; margin-left: 8px;">Frame ${det.frame}</small>
                 </span>
-                <span style="color: #00ff88; font-weight: bold;">${(det.confidence * 100).toFixed(1)}%</span>
+                <span style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-weight: 700; font-size: 12px; color: ${color};">${conf}%</span>
+                    <div style="width: 50px; height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden;">
+                        <div style="height: 100%; width: ${conf}%; background: ${color}; border-radius: 2px;"></div>
+                    </div>
+                </span>
             </div>`;
         });
         
-        if (detections.detections.length > 20) {
-            html += `<div style="text-align: center; padding: 15px; color: #aaa; font-size: 13px;">
-                And ${detections.detections.length - 20} more objects detected...
+        if (detections.detections.length > 30) {
+            html += `<div style="text-align: center; padding: 15px; color: #666; font-size: 12px; border-top: 1px solid rgba(255,255,255,0.03);">
+                + ${detections.detections.length - 30} more objects...
             </div>`;
         }
         
         container.innerHTML = html;
     }
 
-    // Process with AI
+    // ===== PROCESS AI =====
     async function processAI() {
-        document.getElementById('aiStatus').textContent = '⏳ Processing...';
-        document.getElementById('aiStatus').style.color = '#ff9500';
+        if (isProcessing) return;
+        isProcessing = true;
+        
+        const statusEl = document.getElementById('aiStatus');
+        statusEl.textContent = '⏳ Processing...';
+        statusEl.style.color = '#ff9500';
         
         try {
             const response = await fetch(`/api/recordings/videos/${recordingId}/process_ai/`, {
@@ -488,21 +898,25 @@
             const result = await response.json();
             
             if (result.status === 'success') {
-                document.getElementById('aiStatus').textContent = `✅ Processed: ${result.detections_count} detections`;
-                document.getElementById('aiStatus').style.color = '#34c759';
-                loadRecording();
+                statusEl.textContent = '✅ Processed';
+                statusEl.style.color = '#34c759';
+                document.getElementById('detectionCount').textContent = 
+                    `${result.detections_count || 0} objects detected`;
+                loadRecording(); // Reload to show detections
             } else {
-                document.getElementById('aiStatus').textContent = '❌ Error: ' + (result.error || 'Unknown error');
-                document.getElementById('aiStatus').style.color = '#ff3b30';
+                statusEl.textContent = '❌ Error: ' + (result.error || 'Unknown error');
+                statusEl.style.color = '#ff3b30';
             }
         } catch (error) {
             console.error('Error processing AI:', error);
-            document.getElementById('aiStatus').textContent = '❌ Error processing';
-            document.getElementById('aiStatus').style.color = '#ff3b30';
+            statusEl.textContent = '❌ Error processing';
+            statusEl.style.color = '#ff3b30';
         }
+        
+        isProcessing = false;
     }
 
-    // Download video
+    // ===== DOWNLOAD VIDEO =====
     async function downloadVideo() {
         try {
             const response = await fetch(`/api/recordings/videos/${recordingId}/download/`);
@@ -510,7 +924,7 @@
             if (data.download_url) {
                 window.open(data.download_url, '_blank');
             } else {
-                alert('No video file has been synced yet. Please manually upload the downloaded video file from your phone gallery using the upload form.');
+                alert('No video file has been synced yet. Please manually upload the downloaded video file using the upload form.');
             }
         } catch (error) {
             console.error('Error downloading:', error);
@@ -518,7 +932,54 @@
         }
     }
 
-    // Load
+    // ===== DELETE RECORDING - FIXED =====
+    async function deleteRecording() {
+        if (!confirm('Are you sure you want to delete this recording? This cannot be undone.')) return;
+        
+        try {
+            const response = await fetch(`/api/recordings/videos/${recordingId}/`, {
+                method: 'DELETE'
+            });
+            if (response.ok) {
+                // FIXED: Redirect to dashboard root
+                window.location.href = '/';
+            } else {
+                alert('Error deleting recording');
+            }
+        } catch (error) {
+            console.error('Error deleting:', error);
+            alert('Error deleting recording');
+        }
+    }
+
+    // ===== DRAG & DROP UPLOAD =====
+    const uploadBox = document.getElementById('uploadBox');
+    uploadBox.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadBox.classList.add('dragover');
+    });
+    uploadBox.addEventListener('dragleave', () => {
+        uploadBox.classList.remove('dragover');
+    });
+    uploadBox.addEventListener('drop', (e) => {
+        e.preventDefault();
+        uploadBox.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            document.getElementById('fileUploadInput').files = files;
+            uploadVideoFile();
+        }
+    });
+
+    // ===== INIT =====
     loadRecording();
+
+    // Handle resize for chart and canvas
+    window.addEventListener('resize', () => {
+        resizeDetectionCanvas();
+        if (speedData.length > 0) drawSpeedChart(speedData);
+    });
+
+    console.log('📹 Recording detail page loaded successfully');
 </script>
 {% endblock %}
